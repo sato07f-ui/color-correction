@@ -143,4 +143,5 @@ color-correction/
 └── 要件定義書.md          要件定義書
 ```
 
-`ios/`、`macos/`、`linux/`、`windows/` は今回の対象外です。
+`ios/` は将来の iOS 対応のために残していますが、今回は対象外です。
+Linux・macOS・Windows のデスクトップ版には対応しないため、フォルダを削除しています。必要になったら `flutter create --platforms=windows .` のように作り直せます。
