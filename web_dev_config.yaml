@@ -1,0 +1,5 @@
+# `flutter run -d web-server` が読み込む Web 開発サーバーの設定。
+# Cloudflare Tunnel から http://localhost:8080 に転送するため、ポートを固定している。
+server:
+  host: localhost
+  port: 8080
