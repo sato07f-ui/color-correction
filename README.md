@@ -134,19 +134,6 @@ flutter build apk
 
 ```
 color-correction/
-├── lib/                  アプリ本体（Dart コード）
-├── test/                 テストコード
-├── android/              Android 向けの設定（権限、アプリ ID など）
-├── web/                  Web 版の設定
-├── pubspec.yaml          依存パッケージとアセットの設定
-├── web_dev_config.yaml   Web 開発サーバーの設定（Cloudflare Tunnel 用にポートを固定）
-└── 要件定義書.md          要件定義書
-```
-
-## ディレクトリ構成
-
-```
-color-correction/
 ├── lib/                                      アプリ本体（Dartコード）
 │   ├── main.dart                             # E：アプリの起動処理
 │   ├── app.dart                              # E：アプリ全体の構成・画面遷移
