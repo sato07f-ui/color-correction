@@ -143,5 +143,48 @@ color-correction/
 └── 要件定義書.md          要件定義書
 ```
 
+## ディレクトリ構成
+
+```
+color-correction/
+├── lib/                                      アプリ本体（Dartコード）
+│   ├── main.dart                             # E：アプリの起動処理
+│   ├── app.dart                              # E：アプリ全体の構成・画面遷移
+│   ├── core/                                 # E：共通モデル・定数・状態管理
+│   │   ├── models/                           # E：色覚タイプや変換設定などの共通データモデル
+│   │   ├── constants/                        # E：アプリ全体で使用する定数
+│   │   └── providers/                        # E：アプリ全体で共有する状態の管理
+│   ├── features/
+│   │   ├── camera/                           # A：カメラ制御・画像パイプライン
+│   │   │   ├── services/                     # A：カメラの起動・停止、画像ストリーム取得、画像データの受け渡し
+│   │   │   └── models/                       # A：カメラから取得した画像などのデータモデル
+│   │   ├── shader/                           # B：シェーダーによる色変換
+│   │   │   ├── shaders/                      # B：GLSLによる色変換処理
+│   │   │   └── services/                     # B：シェーダーの読み込み・実行、タイプ・強度の反映
+│   │   ├── color_judgement/                  # C：色の判定ロジック
+│   │   │   ├── models/                       # C：色判定結果のデータモデル
+│   │   │   ├── data/                         # C：色名データ
+│   │   │   └── services/                     # C：Lab変換、CIEDE2000、色名判定
+│   │   ├── presentation/                     # D：UI・演出
+│   │   │   ├── screens/                      # D：ホーム画面、カメラ画面、写真画面など
+│   │   │   └── widgets/                      # D：フローティングHUD、色名カード、アニメーションなど
+│   │   └── settings/                         # E：設定管理
+│   │       ├── providers/                    # E：Riverpodによる設定状態の管理
+│   │       └── services/                     # E：設定の保存・読み込み
+│   └── shared/                               # D：複数の画面・機能で共通して使用する部品
+│       └── widgets/                          # D：共通UI部品
+├── test/                                     テストコード
+│   ├── features/
+│   │   ├── camera/                           # A：カメラ機能のテスト
+│   │   ├── shader/                           # B：シェーダー機能のテスト
+│   │   └── color_judgement/                  # C：色判定機能のテスト
+│   └── core/                                 # E：共通機能のテスト
+├── android/                                  # A：Android向けの設定（権限、アプリIDなど）
+├── web/                                      # A：Web版の設定
+├── pubspec.yaml                              依存パッケージとアセットの設定
+├── web_dev_config.yaml                       # A：Web開発サーバーの設定（Cloudflare Tunnel 用にポートを固定）
+└── 要件定義書.md                              要件定義書
+```
+
 `ios/` は将来の iOS 対応のために残していますが、今回は対象外です。
 Linux・macOS・Windows のデスクトップ版には対応しないため、フォルダを削除しています。必要になったら `flutter create --platforms=windows .` のように作り直せます。
