@@ -46,3 +46,7 @@ app.*.map.json
 
 # Widget Preview related
 .widget_preview/
+# Desktop platforms (not used in current development)
+/linux/
+/macos/
+/windows/
