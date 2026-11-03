@@ -61,6 +61,7 @@ flutter:
 
   shaders:
     - lib/features/shader/shaders/poc_camera.frag
+    - lib/features/shader/shaders/correction.frag
 
   # To add assets to your application, add an assets section, like this:
   # assets:
