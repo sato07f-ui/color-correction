@@ -150,7 +150,7 @@ color-correction/
 │   │   │   └── services/                     # B：シェーダーの読み込み・実行、タイプ・強度の反映
 │   │   ├── color_judgement/                  # C：色の判定ロジック
 │   │   │   ├── models/                       # C：色判定結果のデータモデル
-│   │   │   ├── data/                         # C：色名データ
+│   │   │   ├── data/                         # C：色名データの読み込み（データ本体は assets/data/）
 │   │   │   └── services/                     # C：Lab変換、CIEDE2000、色名判定
 │   │   ├── presentation/                     # D：UI・演出
 │   │   │   ├── screens/                      # D：ホーム画面、カメラ画面、写真画面など
@@ -166,6 +166,8 @@ color-correction/
 │   │   ├── shader/                           # B：シェーダー機能のテスト
 │   │   └── color_judgement/                  # C：色判定機能のテスト
 │   └── core/                                 # E：共通機能のテスト
+├── assets/                                   アプリに同梱するファイル
+│   └── data/                                 # C：色名データ（出典とライセンスは data/README.md）
 ├── docs/                                     開発者向けの資料
 │   └── shader.md                             # B：シェーダーの uniform の並びと使い方
 ├── android/                                  # A：Android向けの設定（権限、アプリIDなど）
@@ -177,3 +179,15 @@ color-correction/
 
 `ios/` は将来の iOS 対応のために残していますが、今回は対象外です。
 Linux・macOS・Windows のデスクトップ版には対応しないため、フォルダを削除しています。必要になったら `flutter create --platforms=windows .` のように作り直せます。
+
+## 使用しているデータの出典
+
+### JIS 慣用色名（`assets/data/jis269.json`）
+
+- 出典：日本語版ウィキペディア「[JIS慣用色名](https://ja.wikipedia.org/wiki/JIS慣用色名)」の執筆者
+- 取得元：[mrcl6174/iro-jiten](https://github.com/mrcl6174/iro-jiten)（`reference/jis269.json`）
+- ライセンス：[CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/deed.ja)
+- 変更点：なし
+
+このデータは CC BY-SA 4.0 で提供されています。改変して配布する場合は、改変後のデータも同じライセンスで公開してください。
+詳しくは [assets/data/README.md](assets/data/README.md) を参照してください。

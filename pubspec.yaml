@@ -63,6 +63,9 @@ flutter:
     - lib/features/shader/shaders/poc_camera.frag
     - lib/features/shader/shaders/correction.frag
 
+  assets:
+    - assets/data/jis269.json
+
   # To add assets to your application, add an assets section, like this:
   # assets:
   #   - images/a_dot_burr.jpeg
