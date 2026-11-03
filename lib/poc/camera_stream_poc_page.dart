@@ -1,0 +1,304 @@
+import 'dart:ui' as ui;
+
+import 'package:camera/camera.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+
+import '../features/camera/services/yuv_to_rgba.dart';
+
+/// issue #3 PoC（方式1）。
+///
+/// startImageStream で受け取った YUV420 のフレームを CPU で RGBA に変換し、
+/// ui.Image にしてから FragmentShader に渡して描画する。
+/// 画面上に解像度・fps・処理時間を出し、方式の良し悪しを実機で判断できるようにする。
+class CameraStreamPocPage extends StatefulWidget {
+  const CameraStreamPocPage({super.key});
+
+  @override
+  State<CameraStreamPocPage> createState() => _CameraStreamPocPageState();
+}
+
+class _CameraStreamPocPageState extends State<CameraStreamPocPage>
+    with WidgetsBindingObserver {
+  static const _presets = [
+    ResolutionPreset.low,
+    ResolutionPreset.medium,
+    ResolutionPreset.high,
+  ];
+
+  CameraController? _controller;
+  ui.FragmentShader? _shader;
+  ui.Image? _image;
+  int _quarterTurns = 0;
+  int _presetIndex = 1;
+  bool _invert = true;
+  String? _error;
+
+  // 前のフレームの処理中に届いたフレームは捨てる（溜めると遅延が増える）
+  bool _busy = false;
+
+  final _fpsWatch = Stopwatch();
+  int _framesInWindow = 0;
+  int _droppedInWindow = 0;
+  double _fps = 0;
+  double _dropPerSec = 0;
+  double _convertMs = 0;
+  double _uploadMs = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
+    _start();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    SystemChrome.setPreferredOrientations([]);
+    _stopCamera();
+    _image?.dispose();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.inactive) {
+      _stopCamera();
+    } else if (state == AppLifecycleState.resumed && _controller == null) {
+      _start();
+    }
+  }
+
+  Future<void> _start() async {
+    try {
+      _shader ??= (await ui.FragmentProgram.fromAsset(
+        'lib/features/shader/shaders/poc_camera.frag',
+      )).fragmentShader();
+
+      final cameras = await availableCameras();
+      final back = cameras.firstWhere(
+        (c) => c.lensDirection == CameraLensDirection.back,
+        orElse: () => cameras.first,
+      );
+      final controller = CameraController(
+        back,
+        _presets[_presetIndex],
+        enableAudio: false,
+        imageFormatGroup: ImageFormatGroup.yuv420,
+      );
+      _controller = controller;
+      await controller.initialize();
+      // 縦持ち固定なので、センサーの向きだけ回せば正しい向きになる
+      _quarterTurns = back.sensorOrientation ~/ 90;
+      _fpsWatch
+        ..reset()
+        ..start();
+      await controller.startImageStream(_onFrame);
+      if (mounted) setState(() => _error = null);
+    } on CameraException catch (e) {
+      if (mounted) setState(() => _error = '${e.code}: ${e.description}');
+    }
+  }
+
+  Future<void> _stopCamera() async {
+    final controller = _controller;
+    _controller = null;
+    _busy = false;
+    if (controller == null) return;
+    if (controller.value.isStreamingImages) {
+      await controller.stopImageStream();
+    }
+    await controller.dispose();
+  }
+
+  Future<void> _switchResolution() async {
+    await _stopCamera();
+    setState(() => _presetIndex = (_presetIndex + 1) % _presets.length);
+    await _start();
+  }
+
+  void _onFrame(CameraImage frame) {
+    if (_busy) {
+      _droppedInWindow++;
+      return;
+    }
+    _busy = true;
+
+    final watch = Stopwatch()..start();
+    final Uint8List rgba;
+    try {
+      rgba = yuv420ToRgba(
+        width: frame.width,
+        height: frame.height,
+        yPlane: frame.planes[0].bytes,
+        yRowStride: frame.planes[0].bytesPerRow,
+        uPlane: frame.planes[1].bytes,
+        vPlane: frame.planes[2].bytes,
+        uvRowStride: frame.planes[1].bytesPerRow,
+        uvPixelStride: frame.planes[1].bytesPerPixel ?? 1,
+      );
+    } catch (e) {
+      _busy = false;
+      rethrow;
+    }
+    final convertMs = watch.elapsedMicroseconds / 1000;
+    watch.reset();
+
+    ui.decodeImageFromPixels(
+      rgba,
+      frame.width,
+      frame.height,
+      ui.PixelFormat.rgba8888,
+      (image) {
+        _busy = false;
+        if (!mounted || _controller == null) {
+          image.dispose();
+          return;
+        }
+        final old = _image;
+        setState(() {
+          _image = image;
+          _convertMs = _smooth(_convertMs, convertMs);
+          _uploadMs = _smooth(_uploadMs, watch.elapsedMicroseconds / 1000);
+          _countFrame();
+        });
+        old?.dispose();
+      },
+    );
+  }
+
+  double _smooth(double prev, double next) =>
+      prev == 0 ? next : prev * 0.9 + next * 0.1;
+
+  void _countFrame() {
+    _framesInWindow++;
+    final elapsed = _fpsWatch.elapsedMilliseconds;
+    if (elapsed >= 1000) {
+      _fps = _framesInWindow * 1000 / elapsed;
+      _dropPerSec = _droppedInWindow * 1000 / elapsed;
+      _framesInWindow = 0;
+      _droppedInWindow = 0;
+      _fpsWatch
+        ..reset()
+        ..start();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final image = _image;
+    final shader = _shader;
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          if (image != null && shader != null)
+            CustomPaint(
+              painter: _CameraShaderPainter(
+                shader: shader,
+                image: image,
+                quarterTurns: _quarterTurns,
+                invert: _invert,
+              ),
+            ),
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _Stats(
+                    lines: [
+                      if (_error != null) 'エラー: $_error',
+                      if (image != null)
+                        '解像度: ${image.width}x${image.height}'
+                            '（${_presets[_presetIndex].name}）',
+                      '表示: ${_fps.toStringAsFixed(1)} fps'
+                          '（捨てたフレーム ${_dropPerSec.toStringAsFixed(1)}/秒）',
+                      'YUV→RGBA: ${_convertMs.toStringAsFixed(1)} ms',
+                      'ui.Image 生成: ${_uploadMs.toStringAsFixed(1)} ms',
+                    ],
+                  ),
+                  const Spacer(),
+                  Row(
+                    children: [
+                      FilledButton(
+                        onPressed: () => setState(() => _invert = !_invert),
+                        child: Text(_invert ? '反転: オン' : '反転: オフ'),
+                      ),
+                      const SizedBox(width: 12),
+                      FilledButton(
+                        onPressed: _switchResolution,
+                        child: const Text('解像度を切り替え'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CameraShaderPainter extends CustomPainter {
+  _CameraShaderPainter({
+    required this.shader,
+    required this.image,
+    required this.quarterTurns,
+    required this.invert,
+  });
+
+  final ui.FragmentShader shader;
+  final ui.Image image;
+  final int quarterTurns;
+  final bool invert;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rotated = quarterTurns.isOdd;
+    shader
+      ..setFloat(0, size.width)
+      ..setFloat(1, size.height)
+      ..setFloat(2, (rotated ? image.height : image.width).toDouble())
+      ..setFloat(3, (rotated ? image.width : image.height).toDouble())
+      ..setFloat(4, quarterTurns.toDouble())
+      ..setFloat(5, invert ? 1 : 0)
+      ..setImageSampler(0, image);
+    canvas.drawRect(Offset.zero & size, Paint()..shader = shader);
+  }
+
+  @override
+  bool shouldRepaint(_CameraShaderPainter old) =>
+      old.image != image ||
+      old.quarterTurns != quarterTurns ||
+      old.invert != invert;
+}
+
+class _Stats extends StatelessWidget {
+  const _Stats({required this.lines});
+
+  final List<String> lines;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: Colors.black54,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(8),
+        child: Text(
+          lines.join('\n'),
+          style: const TextStyle(color: Colors.white, fontSize: 13),
+        ),
+      ),
+    );
+  }
+}
