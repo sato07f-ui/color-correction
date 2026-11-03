@@ -166,6 +166,8 @@ color-correction/
 │   │   ├── shader/                           # B：シェーダー機能のテスト
 │   │   └── color_judgement/                  # C：色判定機能のテスト
 │   └── core/                                 # E：共通機能のテスト
+├── docs/                                     開発者向けの資料
+│   └── shader.md                             # B：シェーダーの uniform の並びと使い方
 ├── android/                                  # A：Android向けの設定（権限、アプリIDなど）
 ├── web/                                      # A：Web版の設定
 ├── pubspec.yaml                              依存パッケージとアセットの設定
