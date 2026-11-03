@@ -46,23 +46,80 @@ vec2 toTextureCoord(vec2 p) {
   return p;
 }
 
-// 色覚補正（ダルトニゼーション）。issue #20〜#22 で実装する。
-// いまは入力の色をそのまま返す。
+// sRGB（画面に出す色）と線形RGB（光の強さに比例する色）の変換
+vec3 toLinear(vec3 c) {
+  return mix(c / 12.92, pow((c + 0.055) / 1.055, vec3(2.4)), step(0.04045, c));
+}
+
+vec3 toSrgb(vec3 c) {
+  c = clamp(c, 0.0, 1.0);
+  return mix(c * 12.92, 1.055 * pow(c, vec3(1.0 / 2.4)) - 0.055, step(0.0031308, c));
+}
+
+// 行列は「1行目が R、2行目が G、3行目が B の計算式」になるよう行ごとに書き、
+// `rgb * M` の形で掛ける（GLSL の mat3 は列ごとに値を並べるため、この形で行列×ベクトルになる）。
+
+// 色覚の見え方のシミュレーション（線形RGB）。
+// Machado, Oliveira & Fernandes (2009) "A Physiologically-based Model for
+// Simulation of Color Vision Deficiency" の重さ 1.0 の行列。
+mat3 simulationMatrix(int type) {
+  if (type == 0) {  // P型
+    return mat3(
+       0.152286,  1.052583, -0.204868,
+       0.114503,  0.786281,  0.099216,
+      -0.003882, -0.048116,  1.051998);
+  } else if (type == 1) {  // D型
+    return mat3(
+       0.367322,  0.860646, -0.227968,
+       0.280085,  0.672501,  0.047413,
+      -0.011820,  0.042940,  0.968881);
+  }
+  return mat3(  // T型
+     1.255528, -0.076749, -0.178779,
+    -0.078411,  0.930809,  0.147602,
+     0.004733,  0.691367,  0.303900);
+}
+
+// 見えなくなった差分（誤差）を、見える成分に振り直す行列。
+// Fidaner et al. (2005) の誤差の振り直しをもとに、係数は docs/shader.md の方法で決めた。
+// - P型・D型：赤の誤差を「緑を足し、青を引く」方向に移す（赤緑の違い → 黄青の違い）
+// - T型：青の誤差を「赤を引き、緑を足す」方向に移す（黄青の違い → 赤緑の違い）
+mat3 shiftMatrix(int type) {
+  if (type == 0) {  // P型
+    return mat3(
+       0.0, 0.0, 0.0,
+       0.5, 1.0, 0.0,
+      -0.5, 0.0, 1.0);
+  } else if (type == 1) {  // D型
+    return mat3(
+       0.0, 0.0, 0.0,
+       0.6, 1.0, 0.0,
+      -0.9, 0.0, 1.0);
+  }
+  return mat3(  // T型
+    1.0, 0.0, -0.9,
+    0.0, 1.0,  0.8,
+    0.0, 0.0,  0.0);
+}
+
+// 色覚補正（ダルトニゼーション）。
+// 1. 線形RGBにする
+// 2. その色覚での見え方をシミュレーションし、元の色との差（見えなくなった差分）を求める
+// 3. 差分を見える成分に振り直して元の色に足す
+// 4. 強度に応じて、元の色と補正後の色を混ぜる
 vec3 correct(vec3 rgb, int type, float strength) {
-  return rgb;
+  if (strength <= 0.0) {
+    return rgb;  // 強度 0 は元の色のまま（変換の誤差も出さない）
+  }
+  vec3 lin = toLinear(rgb);
+  vec3 lost = lin - lin * simulationMatrix(type);
+  vec3 corrected = toSrgb(lin + lost * shiftMatrix(type));
+  return mix(rgb, corrected, strength);
 }
 
 void main() {
   vec2 uv = toTextureCoord(FlutterFragCoord().xy / uSize);
   vec3 rgb = texture(uTexture, uv).rgb;
 
-  vec3 result = correct(rgb, int(uType + 0.5), uStrength);
-
-  // 使われていない uniform はコンパイル時に消され、index がずれることがある。
-  // 補正を実装するまでの間、uType と uStrength を確実に残すための処理（実際には実行されない）。
-  if (uType < -1.0) {
-    result = vec3(uStrength);
-  }
-
-  fragColor = vec4(result, 1.0);
+  fragColor = vec4(correct(rgb, int(uType + 0.5), uStrength), 1.0);
 }
