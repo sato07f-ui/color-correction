@@ -7,7 +7,8 @@ class CameraScreen extends StatefulWidget {
   State<CameraScreen> createState() => _CameraScreenState();
 }
 
-class _CameraScreenState extends State<CameraScreen> with SingleTickerProviderStateMixin {
+class _CameraScreenState extends State<CameraScreen>
+    with SingleTickerProviderStateMixin {
   late TabController _tabController;
 
   // RGBスライダー値
@@ -50,7 +51,12 @@ class _CameraScreenState extends State<CameraScreen> with SingleTickerProviderSt
                 width: 48,
                 height: 48,
                 decoration: BoxDecoration(
-                  color: Color.fromRGBO(_red.toInt(), _green.toInt(), _blue.toInt(), 1),
+                  color: Color.fromRGBO(
+                    _red.toInt(),
+                    _green.toInt(),
+                    _blue.toInt(),
+                    1,
+                  ),
                   border: Border.all(color: Colors.black26),
                   borderRadius: BorderRadius.circular(8),
                 ),
@@ -63,9 +69,15 @@ class _CameraScreenState extends State<CameraScreen> with SingleTickerProviderSt
                     '#${_red.toInt().toRadixString(16).padLeft(2, '0').toUpperCase()}'
                     '${_green.toInt().toRadixString(16).padLeft(2, '0').toUpperCase()}'
                     '${_blue.toInt().toRadixString(16).padLeft(2, '0').toUpperCase()}',
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
                   ),
-                  const Text('選択した色 / リアルタイム', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                  const Text(
+                    '選択した色 / リアルタイム',
+                    style: TextStyle(fontSize: 12, color: Colors.grey),
+                  ),
                 ],
               ),
             ],
@@ -77,26 +89,78 @@ class _CameraScreenState extends State<CameraScreen> with SingleTickerProviderSt
           flex: 4,
           child: Container(
             width: double.infinity,
-            color: Colors.black87,
+            color: Colors.black,
             child: Stack(
               alignment: Alignment.center,
               children: [
                 const Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.camera_alt_outlined, color: Colors.white54, size: 64),
+                    Icon(
+                      Icons.camera_alt_outlined,
+                      color: Colors.white54,
+                      size: 64,
+                    ),
                     SizedBox(height: 8),
-                    Text('カメラプレビュー（リアルタイム）', style: TextStyle(color: Colors.white70)),
+                    Text(
+                      'カメラプレビュー（リアルタイム）',
+                      style: TextStyle(color: Colors.white70),
+                    ),
                   ],
                 ),
                 // 中央の検知フレーム
                 Container(
-                  width: _selectedSize == '小' ? 70 : (_selectedSize == '中' ? 110 : 150),
-                  height: _selectedSize == '小' ? 70 : (_selectedSize == '中' ? 110 : 150),
+                  width: _selectedSize == '小'
+                      ? 70
+                      : (_selectedSize == '中' ? 110 : 150),
+                  height: _selectedSize == '小'
+                      ? 70
+                      : (_selectedSize == '中' ? 110 : 150),
                   decoration: BoxDecoration(
                     border: Border.all(color: Colors.white, width: 2),
-                    shape: _selectedShape == '円' ? BoxShape.circle : BoxShape.rectangle,
-                    borderRadius: _selectedShape == '正方形' ? BorderRadius.circular(8) : null,
+                    shape: _selectedShape == '円'
+                        ? BoxShape.circle
+                        : BoxShape.rectangle,
+                    borderRadius: _selectedShape == '正方形'
+                        ? BorderRadius.circular(8)
+                        : null,
+                  ),
+                ),
+                // HUDカード
+                Positioned(
+                  bottom: 16,
+                  left: 16,
+                  right: 16,
+                  child: Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.55),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.3),
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Text(
+                          'SELECTED COLOR',
+                          style: TextStyle(color: Colors.white70, fontSize: 12),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          '#${_red.toInt().toRadixString(16).padLeft(2, '0').toUpperCase()}'
+                          '${_green.toInt().toRadixString(16).padLeft(2, '0').toUpperCase()}'
+                          '${_blue.toInt().toRadixString(16).padLeft(2, '0').toUpperCase()}',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ],
@@ -110,7 +174,13 @@ class _CameraScreenState extends State<CameraScreen> with SingleTickerProviderSt
           child: Container(
             decoration: BoxDecoration(
               color: Colors.white,
-              boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.08), blurRadius: 4, offset: const Offset(0, -2))],
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.08),
+                  blurRadius: 4,
+                  offset: const Offset(0, -2),
+                ),
+              ],
             ),
             child: Column(
               children: [
@@ -137,7 +207,10 @@ class _CameraScreenState extends State<CameraScreen> with SingleTickerProviderSt
                 ),
                 // リセット & 決定ボタン
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
                   child: Row(
                     children: [
                       Expanded(
@@ -179,9 +252,30 @@ class _CameraScreenState extends State<CameraScreen> with SingleTickerProviderSt
     return ListView(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       children: [
-        _buildSliderRow('Red', _red, 0, 255, Colors.red, (v) => setState(() => _red = v)),
-        _buildSliderRow('Green', _green, 0, 255, Colors.green, (v) => setState(() => _green = v)),
-        _buildSliderRow('Blue', _blue, 0, 255, Colors.blue, (v) => setState(() => _blue = v)),
+        _buildSliderRow(
+          'Red',
+          _red,
+          0,
+          255,
+          Colors.red,
+          (v) => setState(() => _red = v),
+        ),
+        _buildSliderRow(
+          'Green',
+          _green,
+          0,
+          255,
+          Colors.green,
+          (v) => setState(() => _green = v),
+        ),
+        _buildSliderRow(
+          'Blue',
+          _blue,
+          0,
+          255,
+          Colors.blue,
+          (v) => setState(() => _blue = v),
+        ),
       ],
     );
   }
@@ -191,9 +285,30 @@ class _CameraScreenState extends State<CameraScreen> with SingleTickerProviderSt
     return ListView(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       children: [
-        _buildSliderRow('H (色相)', _hue, 0, 360, Colors.purple, (v) => setState(() => _hue = v)),
-        _buildSliderRow('S (彩度)', _saturation, 0, 100, Colors.orange, (v) => setState(() => _saturation = v)),
-        _buildSliderRow('L (輝度)', _lightness, 0, 100, Colors.teal, (v) => setState(() => _lightness = v)),
+        _buildSliderRow(
+          'H (色相)',
+          _hue,
+          0,
+          360,
+          Colors.purple,
+          (v) => setState(() => _hue = v),
+        ),
+        _buildSliderRow(
+          'S (彩度)',
+          _saturation,
+          0,
+          100,
+          Colors.orange,
+          (v) => setState(() => _saturation = v),
+        ),
+        _buildSliderRow(
+          'L (輝度)',
+          _lightness,
+          0,
+          100,
+          Colors.teal,
+          (v) => setState(() => _lightness = v),
+        ),
       ],
     );
   }
@@ -209,12 +324,25 @@ class _CameraScreenState extends State<CameraScreen> with SingleTickerProviderSt
           const SizedBox(height: 8),
           SegmentedButton<String>(
             segments: const [
-              ButtonSegment(value: '正方形', label: Text('正方形'), icon: Icon(Icons.crop_square)),
-              ButtonSegment(value: '円', label: Text('円'), icon: Icon(Icons.circle_outlined)),
-              ButtonSegment(value: '長方形', label: Text('長方形'), icon: Icon(Icons.rectangle_outlined)),
+              ButtonSegment(
+                value: '正方形',
+                label: Text('正方形'),
+                icon: Icon(Icons.crop_square),
+              ),
+              ButtonSegment(
+                value: '円',
+                label: Text('円'),
+                icon: Icon(Icons.circle_outlined),
+              ),
+              ButtonSegment(
+                value: '長方形',
+                label: Text('長方形'),
+                icon: Icon(Icons.rectangle_outlined),
+              ),
             ],
             selected: {_selectedShape},
-            onSelectionChanged: (val) => setState(() => _selectedShape = val.first),
+            onSelectionChanged: (val) =>
+                setState(() => _selectedShape = val.first),
           ),
           const SizedBox(height: 16),
           const Text('フレームの大きさ', style: TextStyle(fontWeight: FontWeight.bold)),
@@ -226,17 +354,31 @@ class _CameraScreenState extends State<CameraScreen> with SingleTickerProviderSt
               ButtonSegment(value: '大', label: Text('大')),
             ],
             selected: {_selectedSize},
-            onSelectionChanged: (val) => setState(() => _selectedSize = val.first),
+            onSelectionChanged: (val) =>
+                setState(() => _selectedSize = val.first),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildSliderRow(String label, double value, double min, double max, Color activeColor, ValueChanged<double> onChanged) {
+  Widget _buildSliderRow(
+    String label,
+    double value,
+    double min,
+    double max,
+    Color activeColor,
+    ValueChanged<double> onChanged,
+  ) {
     return Row(
       children: [
-        SizedBox(width: 70, child: Text(label, style: const TextStyle(fontWeight: FontWeight.bold))),
+        SizedBox(
+          width: 70,
+          child: Text(
+            label,
+            style: const TextStyle(fontWeight: FontWeight.bold),
+          ),
+        ),
         Expanded(
           child: Slider(
             value: value,
@@ -246,7 +388,10 @@ class _CameraScreenState extends State<CameraScreen> with SingleTickerProviderSt
             onChanged: onChanged,
           ),
         ),
-        SizedBox(width: 40, child: Text(value.toInt().toString(), textAlign: TextAlign.right)),
+        SizedBox(
+          width: 40,
+          child: Text(value.toInt().toString(), textAlign: TextAlign.right),
+        ),
       ],
     );
   }
