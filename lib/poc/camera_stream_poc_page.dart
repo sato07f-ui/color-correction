@@ -4,13 +4,18 @@ import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../core/models/correction_settings.dart';
 import '../features/camera/services/yuv_to_rgba.dart';
+import '../features/shader/services/correction_painter.dart';
+import '../features/shader/services/correction_shader.dart';
 
 /// issue #3 PoC（方式1）。
 ///
 /// startImageStream で受け取った YUV420 のフレームを CPU で RGBA に変換し、
 /// ui.Image にしてから FragmentShader に渡して描画する。
 /// 画面上に解像度・fps・処理時間を出し、方式の良し悪しを実機で判断できるようにする。
+/// issue #20 からは本番用の補正シェーダー（CorrectionPainter）で描き、
+/// タイプと強度を変えて補正の効果を実機で確かめられるようにしている。
 class CameraStreamPocPage extends StatefulWidget {
   const CameraStreamPocPage({super.key});
 
@@ -27,11 +32,11 @@ class _CameraStreamPocPageState extends State<CameraStreamPocPage>
   ];
 
   CameraController? _controller;
-  ui.FragmentShader? _shader;
+  CorrectionShader? _shader;
   ui.Image? _image;
   int _quarterTurns = 0;
   int _presetIndex = 1;
-  bool _invert = true;
+  var _settings = const CorrectionSettings();
   String? _error;
 
   // 前のフレームの処理中に届いたフレームは捨てる（溜めると遅延が増える）
@@ -73,9 +78,7 @@ class _CameraStreamPocPageState extends State<CameraStreamPocPage>
 
   Future<void> _start() async {
     try {
-      _shader ??= (await ui.FragmentProgram.fromAsset(
-        'lib/features/shader/shaders/poc_camera.frag',
-      )).fragmentShader();
+      _shader ??= await CorrectionShader.load();
 
       final cameras = await availableCameras();
       final back = cameras.firstWhere(
@@ -197,11 +200,11 @@ class _CameraStreamPocPageState extends State<CameraStreamPocPage>
         children: [
           if (image != null && shader != null)
             CustomPaint(
-              painter: _CameraShaderPainter(
+              painter: CorrectionPainter(
                 shader: shader,
                 image: image,
+                settings: _settings,
                 quarterTurns: _quarterTurns,
-                invert: _invert,
               ),
             ),
           SafeArea(
@@ -223,18 +226,15 @@ class _CameraStreamPocPageState extends State<CameraStreamPocPage>
                     ],
                   ),
                   const Spacer(),
-                  Row(
-                    children: [
-                      FilledButton(
-                        onPressed: () => setState(() => _invert = !_invert),
-                        child: Text(_invert ? '反転: オン' : '反転: オフ'),
-                      ),
-                      const SizedBox(width: 12),
-                      FilledButton(
-                        onPressed: _switchResolution,
-                        child: const Text('解像度を切り替え'),
-                      ),
-                    ],
+                  _CorrectionControls(
+                    settings: _settings,
+                    onChanged: (settings) =>
+                        setState(() => _settings = settings),
+                  ),
+                  const SizedBox(height: 8),
+                  FilledButton(
+                    onPressed: _switchResolution,
+                    child: const Text('解像度を切り替え'),
                   ),
                 ],
               ),
@@ -246,38 +246,59 @@ class _CameraStreamPocPageState extends State<CameraStreamPocPage>
   }
 }
 
-class _CameraShaderPainter extends CustomPainter {
-  _CameraShaderPainter({
-    required this.shader,
-    required this.image,
-    required this.quarterTurns,
-    required this.invert,
-  });
+/// 補正タイプと強度を変える操作部品（PoC 用の簡易版）。
+class _CorrectionControls extends StatelessWidget {
+  const _CorrectionControls({required this.settings, required this.onChanged});
 
-  final ui.FragmentShader shader;
-  final ui.Image image;
-  final int quarterTurns;
-  final bool invert;
+  final CorrectionSettings settings;
+  final ValueChanged<CorrectionSettings> onChanged;
 
   @override
-  void paint(Canvas canvas, Size size) {
-    final rotated = quarterTurns.isOdd;
-    shader
-      ..setFloat(0, size.width)
-      ..setFloat(1, size.height)
-      ..setFloat(2, (rotated ? image.height : image.width).toDouble())
-      ..setFloat(3, (rotated ? image.width : image.height).toDouble())
-      ..setFloat(4, quarterTurns.toDouble())
-      ..setFloat(5, invert ? 1 : 0)
-      ..setImageSampler(0, image);
-    canvas.drawRect(Offset.zero & size, Paint()..shader = shader);
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: Colors.black54,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            SegmentedButton<CorrectionType>(
+              segments: [
+                for (final type in CorrectionType.values)
+                  ButtonSegment(value: type, label: Text(type.displayName)),
+              ],
+              selected: {settings.type},
+              onSelectionChanged: (selected) =>
+                  onChanged(settings.copyWith(type: selected.first)),
+              style: SegmentedButton.styleFrom(
+                foregroundColor: Colors.white,
+                selectedForegroundColor: Colors.black,
+                selectedBackgroundColor: Colors.white,
+              ),
+            ),
+            Row(
+              children: [
+                Text(
+                  '強度 ${(settings.strength * 100).round()}%',
+                  style: const TextStyle(color: Colors.white),
+                ),
+                Expanded(
+                  child: Slider(
+                    value: settings.strength,
+                    onChanged: (strength) =>
+                        onChanged(settings.copyWith(strength: strength)),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
   }
-
-  @override
-  bool shouldRepaint(_CameraShaderPainter old) =>
-      old.image != image ||
-      old.quarterTurns != quarterTurns ||
-      old.invert != invert;
 }
 
 class _Stats extends StatelessWidget {

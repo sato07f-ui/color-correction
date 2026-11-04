@@ -60,7 +60,6 @@ flutter:
   uses-material-design: true
 
   shaders:
-    - lib/features/shader/shaders/poc_camera.frag
     - lib/features/shader/shaders/correction.frag
 
   assets:
