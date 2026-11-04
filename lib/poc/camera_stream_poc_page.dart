@@ -55,28 +55,38 @@ class _CameraStreamPocPageState extends State<CameraStreamPocPage>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
-    _start();
+    _runCameraTask(_start);
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     SystemChrome.setPreferredOrientations([]);
-    _stopCamera();
+    _runCameraTask(_stopCamera);
     _image?.dispose();
     super.dispose();
   }
 
+  // カメラの起動と停止は、重ならないように1つずつ順番に実行する。
+  // 初期化の途中で停止すると、プラグインの中で例外が出てカメラが映らなくなる。
+  Future<void> _cameraTask = Future.value();
+
+  void _runCameraTask(Future<void> Function() task) {
+    _cameraTask = _cameraTask.then((_) => task());
+  }
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.inactive) {
-      _stopCamera();
-    } else if (state == AppLifecycleState.resumed && _controller == null) {
-      _start();
+    // inactive では止めない。権限ダイアログを出しただけでも inactive になるため。
+    if (state == AppLifecycleState.paused) {
+      _runCameraTask(_stopCamera);
+    } else if (state == AppLifecycleState.resumed) {
+      _runCameraTask(_start);
     }
   }
 
   Future<void> _start() async {
+    if (_controller != null) return;
     try {
       _shader ??= await CorrectionShader.load();
 
@@ -100,8 +110,13 @@ class _CameraStreamPocPageState extends State<CameraStreamPocPage>
         ..start();
       await controller.startImageStream(_onFrame);
       if (mounted) setState(() => _error = null);
-    } on CameraException catch (e) {
-      if (mounted) setState(() => _error = '${e.code}: ${e.description}');
+    } catch (e) {
+      // 失敗したら片付けておき、次にアプリに戻ったとき（resumed）にやり直せるようにする
+      await _stopCamera();
+      final message = e is CameraException
+          ? '${e.code}: ${e.description}'
+          : '$e';
+      if (mounted) setState(() => _error = message);
     }
   }
 
@@ -116,10 +131,13 @@ class _CameraStreamPocPageState extends State<CameraStreamPocPage>
     await controller.dispose();
   }
 
-  Future<void> _switchResolution() async {
-    await _stopCamera();
-    setState(() => _presetIndex = (_presetIndex + 1) % _presets.length);
-    await _start();
+  void _switchResolution() {
+    _runCameraTask(() async {
+      await _stopCamera();
+      if (!mounted) return;
+      setState(() => _presetIndex = (_presetIndex + 1) % _presets.length);
+      await _start();
+    });
   }
 
   void _onFrame(CameraImage frame) {
