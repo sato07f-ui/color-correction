@@ -192,6 +192,32 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
                         : null,
                   ),
                 ),
+                // 照準付近に表示する仮の色チップ
+                Transform.translate(
+                  offset: const Offset(90, -90),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 250),
+                    width: 28,
+                    height: 28,
+                    decoration: BoxDecoration(
+                      color: Color.fromRGBO(
+                        _red.toInt(),
+                        _green.toInt(),
+                        _blue.toInt(),
+                        1,
+                      ),
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 2),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: Colors.black54,
+                          blurRadius: 4,
+                          spreadRadius: 1,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
