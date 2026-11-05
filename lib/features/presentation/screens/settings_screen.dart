@@ -1,14 +1,19 @@
+
 import 'package:flutter/material.dart';
 
 class SettingsScreen extends StatefulWidget {
-  const SettingsScreen({super.key});
+  final ValueChanged<ThemeMode> onThemeChanged;
+
+  const SettingsScreen({
+    super.key,
+    required this.onThemeChanged,
+  });
 
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  String _theme = 'ライト';
   String _fontSize = '中';
   bool _animation = true;
   String _colorFormat = 'HEX';
@@ -17,19 +22,30 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final currentTheme =
+        Theme.of(context).brightness == Brightness.light
+            ? 'ライト'
+            : 'ダーク';
+
     return ListView(
       padding: const EdgeInsets.symmetric(vertical: 8),
       children: [
         ListTile(
           title: const Text('テーマ'),
-          subtitle: Text(_theme),
+          subtitle: Text(currentTheme),
           trailing: SegmentedButton<String>(
             segments: const [
               ButtonSegment(value: 'ライト', label: Text('ライト')),
               ButtonSegment(value: 'ダーク', label: Text('ダーク')),
             ],
-            selected: {_theme},
-            onSelectionChanged: (val) => setState(() => _theme = val.first),
+            selected: {currentTheme},
+            onSelectionChanged: (val) {
+              widget.onThemeChanged(
+                val.first == 'ライト'
+                    ? ThemeMode.light
+                    : ThemeMode.dark,
+              );
+            },
           ),
         ),
         const Divider(),
@@ -42,7 +58,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ButtonSegment(value: '大', label: Text('大')),
             ],
             selected: {_fontSize},
-            onSelectionChanged: (val) => setState(() => _fontSize = val.first),
+            onSelectionChanged: (val) =>
+                setState(() => _fontSize = val.first),
           ),
         ),
         const Divider(),
@@ -60,7 +77,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ButtonSegment(value: 'HEX', label: Text('HEX')),
             ],
             selected: {_colorFormat},
-            onSelectionChanged: (val) => setState(() => _colorFormat = val.first),
+            onSelectionChanged: (val) =>
+                setState(() => _colorFormat = val.first),
           ),
         ),
         const Divider(),
