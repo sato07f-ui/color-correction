@@ -265,14 +265,21 @@ class _CameraStreamPocPageState extends State<CameraStreamPocPage>
 }
 
 /// 補正タイプと強度を変える操作部品（PoC 用の簡易版）。
-class _CorrectionControls extends StatelessWidget {
+class _CorrectionControls extends StatefulWidget {
   const _CorrectionControls({required this.settings, required this.onChanged});
 
   final CorrectionSettings settings;
   final ValueChanged<CorrectionSettings> onChanged;
 
   @override
+  State<_CorrectionControls> createState() => _CorrectionControlsState();
+}
+
+class _CorrectionControlsState extends State<_CorrectionControls> {
+  @override
   Widget build(BuildContext context) {
+    final settings = widget.settings;
+
     return DecoratedBox(
       decoration: BoxDecoration(
         color: Colors.black54,
@@ -289,8 +296,13 @@ class _CorrectionControls extends StatelessWidget {
                   ButtonSegment(value: type, label: Text(type.displayName)),
               ],
               selected: {settings.type},
-              onSelectionChanged: (selected) =>
-                  onChanged(settings.copyWith(type: selected.first)),
+              onSelectionChanged: (selected) {
+                if (selected.first != settings.type) {
+                  HapticFeedback.selectionClick();
+                }
+
+                widget.onChanged(settings.copyWith(type: selected.first));
+              },
               style: SegmentedButton.styleFrom(
                 foregroundColor: Colors.white,
                 selectedForegroundColor: Colors.black,
@@ -306,8 +318,22 @@ class _CorrectionControls extends StatelessWidget {
                 Expanded(
                   child: Slider(
                     value: settings.strength,
-                    onChanged: (strength) =>
-                        onChanged(settings.copyWith(strength: strength)),
+                    onChanged: (strength) {
+                      const thresholds = [0.0, 0.5, 1.0];
+
+                      final crossed = thresholds.any((threshold) {
+                        return (settings.strength < threshold &&
+                                strength >= threshold) ||
+                            (settings.strength > threshold &&
+                                strength <= threshold);
+                      });
+
+                      if (crossed) {
+                        HapticFeedback.lightImpact();
+                      }
+
+                      widget.onChanged(settings.copyWith(strength: strength));
+                    },
                   ),
                 ),
               ],
