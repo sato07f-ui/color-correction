@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 
 import 'theme/app_theme.dart';
@@ -30,9 +29,7 @@ class _MyAppState extends State<MyApp> {
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
       themeMode: _themeMode,
-      home: MainNavigationScreen(
-        onThemeChanged: _changeTheme,
-      ),
+      home: MainNavigationScreen(onThemeChanged: _changeTheme),
     );
   }
 }
@@ -40,10 +37,7 @@ class _MyAppState extends State<MyApp> {
 class MainNavigationScreen extends StatefulWidget {
   final ValueChanged<ThemeMode> onThemeChanged;
 
-  const MainNavigationScreen({
-    super.key,
-    required this.onThemeChanged,
-  });
+  const MainNavigationScreen({super.key, required this.onThemeChanged});
 
   @override
   State<MainNavigationScreen> createState() => _MainNavigationScreenState();
@@ -52,28 +46,38 @@ class MainNavigationScreen extends StatefulWidget {
 class _MainNavigationScreenState extends State<MainNavigationScreen> {
   int _currentIndex = 0;
 
-  final List<String> _titles = const [
-    'リアルタイムカメラ',
-    '静止画モード',
-    '設定',
-  ];
+  final List<String> _titles = const ['リアルタイムカメラ', '静止画モード', '設定'];
 
   @override
   Widget build(BuildContext context) {
     final List<Widget> screens = [
       const CameraScreen(),
       const StillImageScreen(),
-      SettingsScreen(
-        onThemeChanged: widget.onThemeChanged,
-      ),
+      SettingsScreen(onThemeChanged: widget.onThemeChanged),
     ];
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(_titles[_currentIndex]),
-        elevation: 1,
+      appBar: AppBar(title: Text(_titles[_currentIndex]), elevation: 1),
+      body: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 300),
+        switchInCurve: Curves.easeOutCubic,
+        switchOutCurve: Curves.easeInCubic,
+        transitionBuilder: (Widget child, Animation<double> animation) {
+          final slideAnimation = Tween<Offset>(
+            begin: const Offset(0.04, 0),
+            end: Offset.zero,
+          ).animate(animation);
+
+          return FadeTransition(
+            opacity: animation,
+            child: SlideTransition(position: slideAnimation, child: child),
+          );
+        },
+        child: KeyedSubtree(
+          key: ValueKey<int>(_currentIndex),
+          child: screens[_currentIndex],
+        ),
       ),
-      body: screens[_currentIndex],
       // 手書き設計図の下部切り替えバー
       bottomNavigationBar: NavigationBar(
         selectedIndex: _currentIndex,
