@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:ui' as ui;
 
 import 'package:camera/camera.dart';
@@ -5,7 +6,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/providers/correction_settings_provider.dart';
+import '../../../color/color_names.dart';
 import '../../camera/services/camera_stream_service.dart';
+import '../../camera/services/color_sampler.dart';
 import '../../shader/services/correction_painter.dart';
 import '../../shader/services/correction_shader.dart';
 
@@ -23,8 +26,14 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
   CorrectionShader? _shader;
   ui.Image? _image;
   String? _cameraError;
+  String? _colorSampleError;
+  String? _colorNameError;
+  ColorNameResult? _colorName;
+  bool _isSampling = false;
+  int _sampleRequest = 0;
   bool _isStarting = true;
   Future<void>? _initialization;
+  final ColorSampler _colorSampler = const ColorSampler();
 
   // RGBスライダー値
   double _red = 120;
@@ -49,7 +58,19 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
       onImage: _onImage,
       onError: _onCameraError,
     );
+    unawaited(_loadColorNames());
     _initializeCamera();
+  }
+
+  Future<void> _loadColorNames() async {
+    try {
+      if (!ColorNames.isLoaded) {
+        await ColorNames.load();
+      }
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _colorNameError = '色名データの読み込みに失敗しました: $error');
+    }
   }
 
   Future<void> _initializeCamera() async {
@@ -96,6 +117,40 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
     final oldImage = _image;
     setState(() => _image = image);
     oldImage?.dispose();
+    unawaited(_sampleImage(image));
+  }
+
+  Future<void> _sampleImage(ui.Image image) async {
+    if (_isSampling) return;
+    _isSampling = true;
+    final request = ++_sampleRequest;
+    try {
+      final sampled = await _colorSampler.sampleCenter(image);
+      if (!mounted || request != _sampleRequest || !identical(_image, image)) {
+        return;
+      }
+      if (sampled == null) {
+        throw StateError('カメラ画像から色を取得できませんでした');
+      }
+
+      ColorNameResult? colorName;
+      if (ColorNames.isLoaded) {
+        colorName = findColorName(sampled.r, sampled.g, sampled.b);
+      }
+      setState(() {
+        _red = sampled.r.toDouble();
+        _green = sampled.g.toDouble();
+        _blue = sampled.b.toDouble();
+        _colorName = colorName;
+        _colorSampleError = null;
+      });
+    } catch (error) {
+      if (mounted && request == _sampleRequest) {
+        setState(() => _colorSampleError = '色の取得に失敗しました: $error');
+      }
+    } finally {
+      _isSampling = false;
+    }
   }
 
   void _onCameraError(Object error) {
@@ -123,6 +178,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _sampleRequest++;
     _cameraService.stop();
     _image?.dispose();
     _shader?.dispose();
@@ -250,6 +306,32 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
                             fontWeight: FontWeight.bold,
                           ),
                         ),
+                        if (_colorName != null) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            _colorName!.common ?? _colorName!.basic,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ],
+                        if (_colorSampleError != null)
+                          Text(
+                            _colorSampleError!,
+                            style: const TextStyle(
+                              color: Colors.orangeAccent,
+                              fontSize: 11,
+                            ),
+                          ),
+                        if (_colorNameError != null)
+                          Text(
+                            _colorNameError!,
+                            style: const TextStyle(
+                              color: Colors.orangeAccent,
+                              fontSize: 11,
+                            ),
+                          ),
                       ],
                     ),
                   ),
