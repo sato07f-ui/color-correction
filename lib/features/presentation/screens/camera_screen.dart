@@ -18,8 +18,7 @@ class CameraScreen extends ConsumerStatefulWidget {
 }
 
 class _CameraScreenState extends ConsumerState<CameraScreen>
-    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
-  late TabController _tabController;
+    with WidgetsBindingObserver {
   late final CameraStreamService _cameraService;
   CorrectionShader? _shader;
   ui.Image? _image;
@@ -32,11 +31,6 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
   double _green = 200;
   double _blue = 70;
 
-  // HSLスライダー値
-  double _hue = 180;
-  double _saturation = 50;
-  double _lightness = 50;
-
   // FRAME設定
   String _selectedShape = '正方形';
   String _selectedSize = '中';
@@ -45,7 +39,6 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _tabController = TabController(length: 3, vsync: this);
     _cameraService = CameraStreamService(
       onImage: _onImage,
       onError: _onCameraError,
@@ -127,7 +120,6 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
     _cameraService.stop();
     _image?.dispose();
     _shader?.dispose();
-    _tabController.dispose();
     super.dispose();
   }
 
@@ -189,12 +181,6 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
                 children: CorrectionType.values.map((type) {
                   final isSelected = settings.type == type;
 
-                  final color = switch (type) {
-                    CorrectionType.protan => Colors.red,
-                    CorrectionType.deutan => Colors.green,
-                    CorrectionType.tritan => Colors.blue,
-                  };
-
                   return Expanded(
                     child: Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 4),
@@ -206,11 +192,11 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
                         },
                         style: OutlinedButton.styleFrom(
                           backgroundColor: isSelected
-                              ? color.withValues(alpha: 0.15)
+                              ? Colors.blue.withValues(alpha: 0.15)
                               : Colors.white,
-                          foregroundColor: color,
+                          foregroundColor: Colors.blue,
                           side: BorderSide(
-                            color: isSelected ? color : Colors.grey,
+                            color: isSelected ? Colors.blue : Colors.grey,
                             width: isSelected ? 2 : 1,
                           ),
                         ),
@@ -338,27 +324,45 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
             ),
             child: Column(
               children: [
-                TabBar(
-                  controller: _tabController,
-                  labelColor: Colors.blue,
-                  unselectedLabelColor: Colors.black54,
-                  indicatorColor: Colors.blue,
-                  tabs: const [
-                    Tab(text: 'RGB'),
-                    Tab(text: 'HSL'),
-                    Tab(text: 'FRAME'),
-                  ],
+                Consumer(
+                  builder: (context, ref, child) {
+                    final settings = ref.watch(correctionSettingsProvider);
+
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text(
+                                '補正強度',
+                                style: TextStyle(fontWeight: FontWeight.bold),
+                              ),
+                              Text('${(settings.strength * 100).round()}%'),
+                            ],
+                          ),
+                          Slider(
+                            value: settings.strength,
+                            min: 0,
+                            max: 1,
+                            onChanged: (value) {
+                              ref
+                                  .read(correctionSettingsProvider.notifier)
+                                  .setStrength(value);
+                            },
+                          ),
+                        ],
+                      ),
+                    );
+                  },
                 ),
-                Expanded(
-                  child: TabBarView(
-                    controller: _tabController,
-                    children: [
-                      _buildRgbTab(),
-                      _buildHslTab(),
-                      _buildFrameTab(),
-                    ],
-                  ),
-                ),
+                // 画面が低い端末ではみ出さないよう、スクロールできるようにする
+                Expanded(child: SingleChildScrollView(child: _buildFrameTab())),
                 // リセット & 決定ボタン
                 Padding(
                   padding: const EdgeInsets.symmetric(
@@ -414,72 +418,6 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
     );
   }
 
-  // RGB調整タブ
-  Widget _buildRgbTab() {
-    return ListView(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      children: [
-        _buildSliderRow(
-          'Red',
-          _red,
-          0,
-          255,
-          Colors.red,
-          (v) => setState(() => _red = v),
-        ),
-        _buildSliderRow(
-          'Green',
-          _green,
-          0,
-          255,
-          Colors.green,
-          (v) => setState(() => _green = v),
-        ),
-        _buildSliderRow(
-          'Blue',
-          _blue,
-          0,
-          255,
-          Colors.blue,
-          (v) => setState(() => _blue = v),
-        ),
-      ],
-    );
-  }
-
-  // HSL調整タブ
-  Widget _buildHslTab() {
-    return ListView(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      children: [
-        _buildSliderRow(
-          'H (色相)',
-          _hue,
-          0,
-          360,
-          Colors.purple,
-          (v) => setState(() => _hue = v),
-        ),
-        _buildSliderRow(
-          'S (彩度)',
-          _saturation,
-          0,
-          100,
-          Colors.orange,
-          (v) => setState(() => _saturation = v),
-        ),
-        _buildSliderRow(
-          'L (輝度)',
-          _lightness,
-          0,
-          100,
-          Colors.teal,
-          (v) => setState(() => _lightness = v),
-        ),
-      ],
-    );
-  }
-
   // FRAME設定タブ
   Widget _buildFrameTab() {
     return Padding(
@@ -526,40 +464,6 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildSliderRow(
-    String label,
-    double value,
-    double min,
-    double max,
-    Color activeColor,
-    ValueChanged<double> onChanged,
-  ) {
-    return Row(
-      children: [
-        SizedBox(
-          width: 70,
-          child: Text(
-            label,
-            style: const TextStyle(fontWeight: FontWeight.bold),
-          ),
-        ),
-        Expanded(
-          child: Slider(
-            value: value,
-            min: min,
-            max: max,
-            activeColor: activeColor,
-            onChanged: onChanged,
-          ),
-        ),
-        SizedBox(
-          width: 40,
-          child: Text(value.toInt().toString(), textAlign: TextAlign.right),
-        ),
-      ],
     );
   }
 }
