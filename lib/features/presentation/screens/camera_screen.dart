@@ -1,8 +1,14 @@
+import 'dart:ui' as ui;
+
+import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/models/correction_settings.dart';
 import '../../../core/providers/correction_settings_provider.dart';
+import '../../camera/services/camera_stream_service.dart';
+import '../../shader/services/correction_painter.dart';
+import '../../shader/services/correction_shader.dart';
 
 class CameraScreen extends ConsumerStatefulWidget {
   const CameraScreen({super.key});
@@ -12,8 +18,14 @@ class CameraScreen extends ConsumerStatefulWidget {
 }
 
 class _CameraScreenState extends ConsumerState<CameraScreen>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   late TabController _tabController;
+  late final CameraStreamService _cameraService;
+  CorrectionShader? _shader;
+  ui.Image? _image;
+  String? _cameraError;
+  bool _isStarting = true;
+  Future<void>? _initialization;
 
   // RGBスライダー値
   double _red = 120;
@@ -32,11 +44,89 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _tabController = TabController(length: 3, vsync: this);
+    _cameraService = CameraStreamService(
+      onImage: _onImage,
+      onError: _onCameraError,
+    );
+    _initializeCamera();
+  }
+
+  Future<void> _initializeCamera() async {
+    final runningInitialization = _initialization;
+    if (runningInitialization != null) {
+      await runningInitialization;
+      return;
+    }
+
+    final initialization = _initializeCameraInternal();
+    _initialization = initialization;
+    try {
+      await initialization;
+    } finally {
+      if (identical(_initialization, initialization)) {
+        _initialization = null;
+      }
+    }
+  }
+
+  Future<void> _initializeCameraInternal() async {
+    try {
+      if (_shader == null) {
+        final shader = await CorrectionShader.load();
+        if (!mounted) {
+          shader.dispose();
+          return;
+        }
+        _shader = shader;
+      }
+      await _cameraService.start();
+    } catch (error) {
+      _onCameraError(error);
+    } finally {
+      if (mounted) setState(() => _isStarting = false);
+    }
+  }
+
+  void _onImage(ui.Image image) {
+    if (!mounted) {
+      image.dispose();
+      return;
+    }
+    final oldImage = _image;
+    setState(() => _image = image);
+    oldImage?.dispose();
+  }
+
+  void _onCameraError(Object error) {
+    if (!mounted) return;
+    setState(() => _cameraError = _cameraErrorMessage(error));
+  }
+
+  String _cameraErrorMessage(Object error) {
+    if (error is CameraException) {
+      return '${error.code}: ${error.description ?? 'カメラを利用できません'}';
+    }
+    return '$error';
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused) {
+      _cameraService.stop();
+    } else if (state == AppLifecycleState.resumed) {
+      _isStarting = true;
+      _initializeCamera();
+    }
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _cameraService.stop();
+    _image?.dispose();
+    _shader?.dispose();
     _tabController.dispose();
     super.dispose();
   }
@@ -155,25 +245,23 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
           flex: 4,
           child: Container(
             width: double.infinity,
-            color: Colors.black87,
+            color: Colors.black,
             child: Stack(
               alignment: Alignment.center,
               children: [
-                const Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.camera_alt_outlined,
-                      color: Colors.white54,
-                      size: 64,
+                if (_image != null && _shader != null)
+                  Positioned.fill(
+                    child: CustomPaint(
+                      painter: CorrectionPainter(
+                        shader: _shader!,
+                        image: _image!,
+                        settings: ref.watch(correctionSettingsProvider),
+                        quarterTurns: _cameraService.quarterTurns,
+                      ),
                     ),
-                    SizedBox(height: 8),
-                    Text(
-                      'カメラプレビュー（リアルタイム）',
-                      style: TextStyle(color: Colors.white70),
-                    ),
-                  ],
-                ),
+                  )
+                else
+                  _buildCameraPlaceholder(),
                 // 中央の検知フレーム
                 Container(
                   width: _selectedSize == '小'
@@ -190,6 +278,43 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
                     borderRadius: _selectedShape == '正方形'
                         ? BorderRadius.circular(8)
                         : null,
+                  ),
+                ),
+                // HUDカード
+                Positioned(
+                  bottom: 16,
+                  left: 16,
+                  right: 16,
+                  child: Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.55),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.3),
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Text(
+                          'SELECTED COLOR',
+                          style: TextStyle(color: Colors.white70, fontSize: 12),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          '#${_red.toInt().toRadixString(16).padLeft(2, '0').toUpperCase()}'
+                          '${_green.toInt().toRadixString(16).padLeft(2, '0').toUpperCase()}'
+                          '${_blue.toInt().toRadixString(16).padLeft(2, '0').toUpperCase()}',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ],
@@ -272,6 +397,19 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
             ),
           ),
         ),
+      ],
+    );
+  }
+
+  Widget _buildCameraPlaceholder() {
+    final message =
+        _cameraError ?? (_isStarting ? 'カメラを起動しています...' : 'カメラ映像を取得できません');
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        const Icon(Icons.camera_alt_outlined, color: Colors.white54, size: 64),
+        const SizedBox(height: 8),
+        Text(message, style: const TextStyle(color: Colors.white70)),
       ],
     );
   }
