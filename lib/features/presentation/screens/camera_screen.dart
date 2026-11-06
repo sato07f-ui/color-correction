@@ -155,7 +155,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
           flex: 4,
           child: Container(
             width: double.infinity,
-            color: Colors.black87,
+            color: Colors.black,
             child: Stack(
               alignment: Alignment.center,
               children: [
@@ -190,6 +190,43 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
                     borderRadius: _selectedShape == '正方形'
                         ? BorderRadius.circular(8)
                         : null,
+                  ),
+                ),
+                // HUDカード
+                Positioned(
+                  bottom: 16,
+                  left: 16,
+                  right: 16,
+                  child: Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.55),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.3),
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Text(
+                          'SELECTED COLOR',
+                          style: TextStyle(color: Colors.white70, fontSize: 12),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          '#${_red.toInt().toRadixString(16).padLeft(2, '0').toUpperCase()}'
+                          '${_green.toInt().toRadixString(16).padLeft(2, '0').toUpperCase()}'
+                          '${_blue.toInt().toRadixString(16).padLeft(2, '0').toUpperCase()}',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ],
