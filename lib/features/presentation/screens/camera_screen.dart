@@ -8,6 +8,7 @@ import '../../../core/providers/correction_settings_provider.dart';
 import '../../camera/services/camera_stream_service.dart';
 import '../../shader/services/correction_painter.dart';
 import '../../shader/services/correction_shader.dart';
+import '../../../color/color_names.dart';
 
 class CameraScreen extends ConsumerStatefulWidget {
   const CameraScreen({super.key});
@@ -39,6 +40,11 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
   // FRAME設定
   String _selectedShape = '正方形';
   String _selectedSize = '中';
+
+  // 色名カード
+  bool _showColorNameCard = false;
+  ColorNameResult? _colorNameResult;
+  JisColor? _representativeColor;
 
   @override
   void initState() {
@@ -130,210 +136,362 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
     super.dispose();
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        // 上部: 選択した色 & 色コード/名前表示
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          color: Colors.grey.shade100,
-          child: Row(
+  void _closeColorNameCard() {
+    setState(() {
+      _showColorNameCard = false;
+    });
+  }
+
+  void _openColorNameCard() {
+    final result = findColorName(_red.toInt(), _green.toInt(), _blue.toInt());
+
+    JisColor? representative;
+
+    if (result.common != null) {
+      for (final color in ColorNames.colors) {
+        if (result.common == color.name ||
+            result.common!.startsWith('${color.name}に')) {
+          representative = color;
+          break;
+        }
+      }
+    }
+
+    setState(() {
+      _colorNameResult = result;
+      _representativeColor = representative;
+      _showColorNameCard = true;
+    });
+  }
+
+
+  Widget _buildColorNameCard() {
+    final result = _colorNameResult;
+    if (result == null) {
+      return const SizedBox.shrink();
+    }
+
+    final representative = _representativeColor;
+
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(20),
+      elevation: 12,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 320),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  color: Color.fromRGBO(
-                    _red.toInt(),
-                    _green.toInt(),
-                    _blue.toInt(),
-                    1,
-                  ),
-                  border: Border.all(color: Colors.black26),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              Row(
                 children: [
-                  Text(
-                    '#${_red.toInt().toRadixString(16).padLeft(2, '0').toUpperCase()}'
-                    '${_green.toInt().toRadixString(16).padLeft(2, '0').toUpperCase()}'
-                    '${_blue.toInt().toRadixString(16).padLeft(2, '0').toUpperCase()}',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
+                  const Expanded(
+                    child: Text(
+                      'COLOR NAME',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
-                  const Text(
-                    '選択した色 / リアルタイム',
-                    style: TextStyle(fontSize: 12, color: Colors.grey),
+                  IconButton(
+                    onPressed: _closeColorNameCard,
+                    icon: const Icon(Icons.close),
                   ),
                 ],
               ),
+              const SizedBox(height: 12),
+              const Text('基本色名'),
+              Text(
+                result.basic,
+                style: const TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 20),
+              const Text('慣用色名'),
+              Text(
+                result.common ?? '該当なし',
+                style: const TextStyle(fontSize: 20),
+              ),
+              if (representative != null) ...[
+                const SizedBox(height: 16),
+                const Text('代表色'),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: Color.fromRGBO(
+                          representative.r,
+                          representative.g,
+                          representative.b,
+                          1,
+                        ),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.black12),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        representative.name,
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ],
           ),
         ),
+      ),
+    );
+  }
 
-        // 中央: カメラプレビューエリア
-        Expanded(
-          flex: 4,
-          child: Container(
-            width: double.infinity,
-            color: Colors.black,
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                if (_image != null && _shader != null)
-                  Positioned.fill(
-                    child: CustomPaint(
-                      painter: CorrectionPainter(
-                        shader: _shader!,
-                        image: _image!,
-                        settings: ref.watch(correctionSettingsProvider),
-                        quarterTurns: _cameraService.quarterTurns,
-                      ),
-                    ),
-                  )
-                else
-                  _buildCameraPlaceholder(),
-                // 中央の検知フレーム
-                Container(
-                  width: _selectedSize == '小'
-                      ? 70
-                      : (_selectedSize == '中' ? 110 : 150),
-                  height: _selectedSize == '小'
-                      ? 70
-                      : (_selectedSize == '中' ? 110 : 150),
-                  decoration: BoxDecoration(
-                    border: Border.all(color: Colors.white, width: 2),
-                    shape: _selectedShape == '円'
-                        ? BoxShape.circle
-                        : BoxShape.rectangle,
-                    borderRadius: _selectedShape == '正方形'
-                        ? BorderRadius.circular(8)
-                        : null,
-                  ),
-                ),
-                // HUDカード
-                Positioned(
-                  bottom: 16,
-                  left: 16,
-                  right: 16,
-                  child: Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.55),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.3),
-                      ),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Text(
-                          'SELECTED COLOR',
-                          style: TextStyle(color: Colors.white70, fontSize: 12),
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        Column(
+          children: [
+            // 上部: 選択した色 & 色コード/名前表示
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              color: Colors.grey.shade100,
+              child: Row(
+                children: [
+                  GestureDetector(
+                    onTap: _openColorNameCard,
+                    child: Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        color: Color.fromRGBO(
+                          _red.toInt(),
+                          _green.toInt(),
+                          _blue.toInt(),
+                          1,
                         ),
-                        const SizedBox(height: 6),
-                        Text(
-                          '#${_red.toInt().toRadixString(16).padLeft(2, '0').toUpperCase()}'
-                          '${_green.toInt().toRadixString(16).padLeft(2, '0').toUpperCase()}'
-                          '${_blue.toInt().toRadixString(16).padLeft(2, '0').toUpperCase()}',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
+                        border: Border.all(color: Colors.black26),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '#${_red.toInt().toRadixString(16).padLeft(2, '0').toUpperCase()}'
+                        '${_green.toInt().toRadixString(16).padLeft(2, '0').toUpperCase()}'
+                        '${_blue.toInt().toRadixString(16).padLeft(2, '0').toUpperCase()}',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
+                      const Text(
+                        '選択した色 / リアルタイム',
+                        style: TextStyle(fontSize: 12, color: Colors.grey),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+
+            // 中央: カメラプレビューエリア
+            Expanded(
+              flex: 4,
+              child: Container(
+                width: double.infinity,
+                color: Colors.black,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    if (_image != null && _shader != null)
+                      Positioned.fill(
+                        child: CustomPaint(
+                          painter: CorrectionPainter(
+                            shader: _shader!,
+                            image: _image!,
+                            settings: ref.watch(correctionSettingsProvider),
+                            quarterTurns: _cameraService.quarterTurns,
                           ),
                         ),
+                      )
+                    else
+                      _buildCameraPlaceholder(),
+                    // 中央の検知フレーム
+                    Container(
+                      width: _selectedSize == '小'
+                          ? 70
+                          : (_selectedSize == '中' ? 110 : 150),
+                      height: _selectedSize == '小'
+                          ? 70
+                          : (_selectedSize == '中' ? 110 : 150),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.white, width: 2),
+                        shape: _selectedShape == '円'
+                            ? BoxShape.circle
+                            : BoxShape.rectangle,
+                        borderRadius: _selectedShape == '正方形'
+                            ? BorderRadius.circular(8)
+                            : null,
+                      ),
+                    ),
+                    // HUDカード
+                    Positioned(
+                      bottom: 16,
+                      left: 16,
+                      right: 16,
+                      child: Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.55),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.3),
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Text(
+                              'SELECTED COLOR',
+                              style: TextStyle(
+                                color: Colors.white70,
+                                fontSize: 12,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              '#${_red.toInt().toRadixString(16).padLeft(2, '0').toUpperCase()}'
+                              '${_green.toInt().toRadixString(16).padLeft(2, '0').toUpperCase()}'
+                              '${_blue.toInt().toRadixString(16).padLeft(2, '0').toUpperCase()}',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            // 下部: 色調整エリア（RGB / HSL / FRAME）
+            Expanded(
+              flex: 5,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.08),
+                      blurRadius: 4,
+                      offset: const Offset(0, -2),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  children: [
+                    TabBar(
+                      controller: _tabController,
+                      labelColor: Colors.blue,
+                      unselectedLabelColor: Colors.black54,
+                      indicatorColor: Colors.blue,
+                      tabs: const [
+                        Tab(text: 'RGB'),
+                        Tab(text: 'HSL'),
+                        Tab(text: 'FRAME'),
                       ],
+                    ),
+                    Expanded(
+                      child: TabBarView(
+                        controller: _tabController,
+                        children: [
+                          _buildRgbTab(),
+                          _buildHslTab(),
+                          _buildFrameTab(),
+                        ],
+                      ),
+                    ),
+                    // リセット & 決定ボタン
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: () {
+                                setState(() {
+                                  _red = 120;
+                                  _green = 200;
+                                  _blue = 70;
+                                });
+                              },
+                              child: const Text('リセット'),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: ElevatedButton(
+                              onPressed: () {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('色調整を適用しました')),
+                                );
+                              },
+                              child: const Text('決定'),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+        if (_showColorNameCard)
+          Positioned.fill(
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: _closeColorNameCard,
+              child: Container(
+                color: Colors.black54,
+                child: Center(
+                  child: GestureDetector(
+                    onTap: () {},
+                    child: TweenAnimationBuilder<double>(
+                      tween: Tween(begin: 0.7, end: 1.0),
+                      duration: const Duration(milliseconds: 300),
+                      curve: Curves.easeOutBack,
+                      builder: (context, scale, child) {
+                        return Transform.scale(scale: scale, child: child);
+                      },
+                      child: _buildColorNameCard(),
                     ),
                   ),
                 ),
-              ],
+              ),
             ),
           ),
-        ),
-
-        // 下部: 色調整エリア（RGB / HSL / FRAME）
-        Expanded(
-          flex: 5,
-          child: Container(
-            decoration: BoxDecoration(
-              color: Colors.white,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.08),
-                  blurRadius: 4,
-                  offset: const Offset(0, -2),
-                ),
-              ],
-            ),
-            child: Column(
-              children: [
-                TabBar(
-                  controller: _tabController,
-                  labelColor: Colors.blue,
-                  unselectedLabelColor: Colors.black54,
-                  indicatorColor: Colors.blue,
-                  tabs: const [
-                    Tab(text: 'RGB'),
-                    Tab(text: 'HSL'),
-                    Tab(text: 'FRAME'),
-                  ],
-                ),
-                Expanded(
-                  child: TabBarView(
-                    controller: _tabController,
-                    children: [
-                      _buildRgbTab(),
-                      _buildHslTab(),
-                      _buildFrameTab(),
-                    ],
-                  ),
-                ),
-                // リセット & 決定ボタン
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 8,
-                  ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton(
-                          onPressed: () {
-                            setState(() {
-                              _red = 120;
-                              _green = 200;
-                              _blue = 70;
-                            });
-                          },
-                          child: const Text('リセット'),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: ElevatedButton(
-                          onPressed: () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('色調整を適用しました')),
-                            );
-                          },
-                          child: const Text('決定'),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
       ],
     );
   }
