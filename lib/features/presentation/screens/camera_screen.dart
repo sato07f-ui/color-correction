@@ -3,6 +3,7 @@ import 'dart:ui' as ui;
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 import '../../../core/models/correction_settings.dart';
 import '../../../core/providers/correction_settings_provider.dart';
@@ -23,6 +24,8 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
   CorrectionShader? _shader;
   ui.Image? _image;
   String? _cameraError;
+  bool _cameraPermissionDenied = false;
+  bool _permissionDialogShown = false;
   bool _isStarting = true;
   Future<void>? _initialization;
 
@@ -88,20 +91,83 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
       return;
     }
     final oldImage = _image;
-    setState(() => _image = image);
+    setState(() {
+      _image = image;
+      _cameraError = null;
+      _cameraPermissionDenied = false;
+    });
     oldImage?.dispose();
   }
 
   void _onCameraError(Object error) {
     if (!mounted) return;
-    setState(() => _cameraError = _cameraErrorMessage(error));
+    final permissionDenied = _isCameraPermissionDenied(error);
+    setState(() {
+      _cameraError = _cameraErrorMessage(error);
+      _cameraPermissionDenied = permissionDenied;
+    });
+    if (permissionDenied) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _showPermissionDialog();
+      });
+    }
+  }
+
+  bool _isCameraPermissionDenied(Object error) {
+    if (error is! CameraException) return false;
+    return error.code == 'CameraAccessDenied' ||
+        error.code == 'CameraAccessDeniedWithoutPrompt' ||
+        error.code == 'CameraAccessRestricted';
   }
 
   String _cameraErrorMessage(Object error) {
     if (error is CameraException) {
+      if (_isCameraPermissionDenied(error)) {
+        return 'カメラの使用が許可されていません。\n設定からカメラへのアクセスを許可してください。';
+      }
       return '${error.code}: ${error.description ?? 'カメラを利用できません'}';
     }
     return '$error';
+  }
+
+  Future<void> _openCameraSettings() async {
+    _permissionDialogShown = false;
+    final opened = await openAppSettings();
+    if (!opened && mounted) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('設定画面を開けませんでした')));
+    }
+  }
+
+  Future<void> _showPermissionDialog() async {
+    if (!mounted || !_cameraPermissionDenied || _permissionDialogShown) {
+      return;
+    }
+    _permissionDialogShown = true;
+
+    await showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('カメラの許可が必要です'),
+        content: const Text(
+          'カメラ映像を表示するには、カメラへのアクセスを許可してください。\n'
+          '設定画面からカメラの権限を変更できます。',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('あとで'),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              _openCameraSettings();
+            },
+            child: const Text('設定を開く'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -413,7 +479,14 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
       children: [
         const Icon(Icons.camera_alt_outlined, color: Colors.white54, size: 64),
         const SizedBox(height: 8),
-        Text(message, style: const TextStyle(color: Colors.white70)),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          child: Text(
+            message,
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: Colors.white70),
+          ),
+        ),
       ],
     );
   }
