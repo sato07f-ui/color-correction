@@ -33,11 +33,14 @@ class AppTheme {
       useMaterial3: true,
       colorScheme: colorScheme,
 
-      // 日本語フォント
-      // 日本語フォント
-      textTheme: ThemeData.light().textTheme.apply(
-        fontFamily: GoogleFonts.notoSansJp().fontFamily,
-      ),
+      // 日本語フォント。文字色はテーマの明るさに合わせる
+      // （ダークテーマで ThemeData.light() の文字を使うと、暗い背景に暗い文字になる）
+      textTheme:
+          (colorScheme.brightness == Brightness.dark
+                  ? ThemeData.dark()
+                  : ThemeData.light())
+              .textTheme
+              .apply(fontFamily: GoogleFonts.notoSansJp().fontFamily),
 
       // 背景
       scaffoldBackgroundColor: colorScheme.brightness == Brightness.light

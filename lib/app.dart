@@ -1,35 +1,44 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'features/settings/providers/font_size_provider.dart';
+import 'features/settings/providers/theme_mode_provider.dart';
 import 'theme/app_theme.dart';
 import 'features/presentation/screens/camera_screen.dart';
 import 'features/presentation/screens/settings_screen.dart';
 import 'features/presentation/screens/still_image_screen.dart';
 
-class MyApp extends StatefulWidget {
+class MyApp extends ConsumerWidget {
   const MyApp({super.key});
 
   @override
-  State<MyApp> createState() => _MyAppState();
-}
-
-class _MyAppState extends State<MyApp> {
-  ThemeMode _themeMode = ThemeMode.system;
-
-  void _changeTheme(ThemeMode mode) {
-    setState(() {
-      _themeMode = mode;
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'Color Correction App',
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
-      themeMode: _themeMode,
-      home: MainNavigationScreen(onThemeChanged: _changeTheme),
+      // テーマは Provider で持ち、端末に保存する
+      themeMode: ref.watch(themeModeProvider),
+      // 設定画面の文字サイズを、アプリ全体の文字に反映する
+      builder: (context, child) => Consumer(
+        builder: (context, ref, _) {
+          final scale = ref.watch(fontSizeProvider).scale;
+          final mediaQuery = MediaQuery.of(context);
+          return MediaQuery(
+            data: mediaQuery.copyWith(
+              // 端末の文字サイズ設定に、アプリの倍率を掛ける
+              textScaler: TextScaler.linear(
+                mediaQuery.textScaler.scale(1) * scale,
+              ),
+            ),
+            child: child!,
+          );
+        },
+      ),
+      home: MainNavigationScreen(
+        onThemeChanged: ref.read(themeModeProvider.notifier).setThemeMode,
+      ),
     );
   }
 }
