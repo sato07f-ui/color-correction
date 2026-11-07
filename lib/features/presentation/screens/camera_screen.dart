@@ -9,6 +9,7 @@ import 'package:permission_handler/permission_handler.dart';
 import '../../../color/color_names.dart';
 import '../../../core/models/correction_settings.dart';
 import '../../../core/providers/correction_settings_provider.dart';
+import '../../../theme/app_theme.dart';
 import '../../camera/services/camera_stream_service.dart';
 import '../../camera/services/color_sampler.dart';
 import '../../shader/services/correction_painter.dart';
@@ -46,6 +47,9 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
   // FRAME設定
   String _selectedShape = '正方形';
   String _selectedSize = '中';
+
+  // 長押ししている間だけ、補正前の映像を表示する
+  bool _showOriginal = false;
 
   // 色名カード
   bool _showColorNameCard = false;
@@ -400,314 +404,292 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
     );
   }
 
-  // 色名カードの下に表示する、カメラ画面の本体
+  // 色名カードの下に表示する、カメラ画面の本体。
+  // カメラ映像を全面に出し、操作部品は半透明のカードで映像の上に重ねる（F-01、F-07）
   Widget _buildMainContent() {
-    return Column(
-      children: [
-        // 上部: 選択した色 & 色コード/名前表示
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          color: Colors.grey.shade100,
-          child: Row(
-            children: [
-              GestureDetector(
-                onTap: _openColorNameCard,
-                child: Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    color: Color.fromRGBO(
-                      _red.toInt(),
-                      _green.toInt(),
-                      _blue.toInt(),
-                      1,
-                    ),
-                    border: Border.all(color: Colors.black26),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
+    final settings = ref.watch(correctionSettingsProvider);
+
+    return GestureDetector(
+      onLongPressStart: (_) => setState(() => _showOriginal = true),
+      onLongPressEnd: (_) => setState(() => _showOriginal = false),
+      onLongPressCancel: () => setState(() => _showOriginal = false),
+      child: Container(
+        color: Colors.black,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            if (_image != null && _shader != null)
+              CustomPaint(
+                painter: CorrectionPainter(
+                  shader: _shader!,
+                  image: _image!,
+                  // 長押し中は強度 0（補正前の映像）で描く
+                  settings: _showOriginal
+                      ? settings.copyWith(strength: 0)
+                      : settings,
+                  quarterTurns: _cameraService.quarterTurns,
                 ),
-              ),
-              const SizedBox(width: 12),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '#${_red.toInt().toRadixString(16).padLeft(2, '0').toUpperCase()}'
-                    '${_green.toInt().toRadixString(16).padLeft(2, '0').toUpperCase()}'
-                    '${_blue.toInt().toRadixString(16).padLeft(2, '0').toUpperCase()}',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                    ),
-                  ),
-                  const Text(
-                    '選択した色 / リアルタイム',
-                    style: TextStyle(fontSize: 12, color: Colors.grey),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-
-        // 補正タイプ選択UI
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          child: Consumer(
-            builder: (context, ref, child) {
-              final settings = ref.watch(correctionSettingsProvider);
-
-              return Row(
-                children: CorrectionType.values.map((type) {
-                  final isSelected = settings.type == type;
-
-                  return Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 4),
-                      child: OutlinedButton(
-                        onPressed: () {
-                          ref
-                              .read(correctionSettingsProvider.notifier)
-                              .setType(type);
-                        },
-                        style: OutlinedButton.styleFrom(
-                          backgroundColor: isSelected
-                              ? Colors.blue.withValues(alpha: 0.15)
-                              : Colors.white,
-                          foregroundColor: Colors.blue,
-                          side: BorderSide(
-                            color: isSelected ? Colors.blue : Colors.grey,
-                            width: isSelected ? 2 : 1,
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            if (isSelected) const Icon(Icons.check, size: 16),
-                            if (isSelected) const SizedBox(width: 4),
-                            Flexible(
-                              child: Text(
-                                type.displayName,
-                                style: TextStyle(
-                                  fontWeight: isSelected
-                                      ? FontWeight.bold
-                                      : FontWeight.normal,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  );
-                }).toList(),
-              );
-            },
-          ),
-        ),
-
-        // 中央: カメラプレビューエリア
-        Expanded(
-          flex: 4,
-          child: Container(
-            width: double.infinity,
-            color: Colors.black,
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                if (_image != null && _shader != null)
-                  Positioned.fill(
-                    child: CustomPaint(
-                      painter: CorrectionPainter(
-                        shader: _shader!,
-                        image: _image!,
-                        settings: ref.watch(correctionSettingsProvider),
-                        quarterTurns: _cameraService.quarterTurns,
-                      ),
-                    ),
-                  )
-                else
-                  _buildCameraPlaceholder(),
-                // 中央の検知フレーム
-                Container(
-                  width: _selectedSize == '小'
-                      ? 70
-                      : (_selectedSize == '中' ? 110 : 150),
-                  height: _selectedSize == '小'
-                      ? 70
-                      : (_selectedSize == '中' ? 110 : 150),
-                  decoration: BoxDecoration(
-                    border: Border.all(color: Colors.white, width: 2),
-                    shape: _selectedShape == '円'
-                        ? BoxShape.circle
-                        : BoxShape.rectangle,
-                    borderRadius: _selectedShape == '正方形'
-                        ? BorderRadius.circular(8)
-                        : null,
-                  ),
-                ),
-                // HUDカード
-                Positioned(
-                  bottom: 16,
-                  left: 16,
-                  right: 16,
-                  child: Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.55),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.3),
-                      ),
-                    ),
+              )
+            else
+              _buildCameraPlaceholder(),
+            // 照準と、照準の位置の色のチップ（F-05）
+            Center(child: _buildReticle()),
+            // 操作部品は暗い半透明のカードに載せるので、ダークテーマの部品を使う
+            Theme(
+              data: AppTheme.dark,
+              child: DefaultTextStyle.merge(
+                style: const TextStyle(color: Colors.white),
+                child: SafeArea(
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
                     child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Text(
-                          'SELECTED COLOR',
-                          style: TextStyle(color: Colors.white70, fontSize: 12),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          '#${_red.toInt().toRadixString(16).padLeft(2, '0').toUpperCase()}'
-                          '${_green.toInt().toRadixString(16).padLeft(2, '0').toUpperCase()}'
-                          '${_blue.toInt().toRadixString(16).padLeft(2, '0').toUpperCase()}',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        if (_colorName != null) ...[
-                          const SizedBox(height: 4),
-                          Text(
-                            _colorName!.common ?? _colorName!.basic,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 14,
+                        _buildTypeSelector(settings),
+                        if (_showOriginal) ...[
+                          const SizedBox(height: 12),
+                          _buildGlassCard(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 6,
+                            ),
+                            child: const Text(
+                              '補正前の映像',
+                              style: TextStyle(fontWeight: FontWeight.bold),
                             ),
                           ),
                         ],
-                        if (_colorSampleError != null)
-                          Text(
-                            _colorSampleError!,
-                            style: const TextStyle(
-                              color: Colors.orangeAccent,
-                              fontSize: 11,
-                            ),
-                          ),
-                        if (_colorNameError != null)
-                          Text(
-                            _colorNameError!,
-                            style: const TextStyle(
-                              color: Colors.orangeAccent,
-                              fontSize: 11,
-                            ),
-                          ),
+                        const Spacer(),
+                        _buildBottomPanel(settings),
                       ],
                     ),
                   ),
                 ),
-              ],
+              ),
             ),
-          ),
+          ],
         ),
+      ),
+    );
+  }
 
-        // 下部: 色調整エリア（RGB / HSL / FRAME）
-        Expanded(
-          flex: 5,
-          child: Container(
-            decoration: BoxDecoration(
-              color: Colors.white,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.08),
-                  blurRadius: 4,
-                  offset: const Offset(0, -2),
-                ),
-              ],
-            ),
-            child: Column(
-              children: [
-                Consumer(
-                  builder: (context, ref, child) {
-                    final settings = ref.watch(correctionSettingsProvider);
+  // 映像の上に重ねる、暗い半透明のカード
+  Widget _buildGlassCard({
+    required Widget child,
+    EdgeInsetsGeometry padding = const EdgeInsets.all(12),
+  }) {
+    return Container(
+      padding: padding,
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.55),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.3)),
+      ),
+      child: child,
+    );
+  }
 
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 8,
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              const Text(
-                                '補正強度',
-                                style: TextStyle(fontWeight: FontWeight.bold),
-                              ),
-                              Text('${(settings.strength * 100).round()}%'),
-                            ],
-                          ),
-                          Slider(
-                            value: settings.strength,
-                            min: 0,
-                            max: 1,
-                            onChanged: (value) {
-                              ref
-                                  .read(correctionSettingsProvider.notifier)
-                                  .setStrength(value);
-                            },
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                ),
-                // 画面が低い端末ではみ出さないよう、スクロールできるようにする
-                Expanded(child: SingleChildScrollView(child: _buildFrameTab())),
-                // リセット & 決定ボタン
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 8,
-                  ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton(
-                          onPressed: () {
-                            setState(() {
-                              _red = 120;
-                              _green = 200;
-                              _blue = 70;
-                            });
-                          },
-                          child: const Text('リセット'),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: ElevatedButton(
-                          onPressed: () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('色調整を適用しました')),
-                            );
-                          },
-                          child: const Text('決定'),
-                        ),
-                      ),
-                    ],
+  // 補正タイプ選択UI
+  Widget _buildTypeSelector(CorrectionSettings settings) {
+    final primary = AppTheme.dark.colorScheme.primary;
+
+    return _buildGlassCard(
+      padding: const EdgeInsets.all(6),
+      child: Row(
+        children: CorrectionType.values.map((type) {
+          final isSelected = settings.type == type;
+
+          return Expanded(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 3),
+              child: OutlinedButton(
+                onPressed: () {
+                  ref.read(correctionSettingsProvider.notifier).setType(type);
+                },
+                style: OutlinedButton.styleFrom(
+                  backgroundColor: isSelected
+                      ? primary.withValues(alpha: 0.35)
+                      : Colors.transparent,
+                  foregroundColor: Colors.white,
+                  side: BorderSide(
+                    color: isSelected ? primary : Colors.white38,
+                    width: isSelected ? 2 : 1,
                   ),
                 ),
-              ],
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    if (isSelected) const Icon(Icons.check, size: 16),
+                    if (isSelected) const SizedBox(width: 4),
+                    Flexible(
+                      child: Text(
+                        type.displayName,
+                        style: TextStyle(
+                          fontWeight: isSelected
+                              ? FontWeight.bold
+                              : FontWeight.normal,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  // 照準と、その下の色のチップ。
+  // 照準が画面のちょうど中央に来るよう、チップと同じ高さの余白を上にも入れる
+  Widget _buildReticle() {
+    const chipHeight = 44.0;
+    const gap = 12.0;
+    final size = _selectedSize == '小'
+        ? 70.0
+        : (_selectedSize == '中' ? 110.0 : 150.0);
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const SizedBox(height: chipHeight + gap),
+        Container(
+          width: size,
+          height: size,
+          decoration: BoxDecoration(
+            border: Border.all(color: Colors.white, width: 2),
+            shape: _selectedShape == '円' ? BoxShape.circle : BoxShape.rectangle,
+            borderRadius: _selectedShape == '正方形'
+                ? BorderRadius.circular(8)
+                : null,
           ),
         ),
+        const SizedBox(height: gap),
+        SizedBox(height: chipHeight, child: _buildColorChip()),
       ],
+    );
+  }
+
+  String get _hexCode =>
+      '#${_red.toInt().toRadixString(16).padLeft(2, '0').toUpperCase()}'
+      '${_green.toInt().toRadixString(16).padLeft(2, '0').toUpperCase()}'
+      '${_blue.toInt().toRadixString(16).padLeft(2, '0').toUpperCase()}';
+
+  // 照準の位置の色を表示するチップ。タップすると色名カードが開く
+  Widget _buildColorChip() {
+    final error = _colorSampleError ?? _colorNameError;
+    final name = _colorName?.common ?? _colorName?.basic;
+
+    return GestureDetector(
+      onTap: _openColorNameCard,
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 300),
+        padding: const EdgeInsets.only(left: 6, right: 16),
+        decoration: BoxDecoration(
+          color: Colors.black.withValues(alpha: 0.55),
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.3)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                color: Color.fromRGBO(
+                  _red.toInt(),
+                  _green.toInt(),
+                  _blue.toInt(),
+                  1,
+                ),
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white, width: 2),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Flexible(
+              child: Text(
+                error ?? name ?? _hexCode,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: error != null ? Colors.orangeAccent : Colors.white,
+                  fontSize: error != null ? 12 : 15,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            if (error == null && name != null) ...[
+              const SizedBox(width: 8),
+              Text(
+                _hexCode,
+                style: const TextStyle(color: Colors.white70, fontSize: 12),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  // 下部のカード：補正強度と、照準の設定など
+  Widget _buildBottomPanel(CorrectionSettings settings) {
+    return _buildGlassCard(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text('補正強度', style: TextStyle(fontWeight: FontWeight.bold)),
+              Text('${(settings.strength * 100).round()}%'),
+            ],
+          ),
+          Slider(
+            value: settings.strength,
+            min: 0,
+            max: 1,
+            onChanged: (value) {
+              ref.read(correctionSettingsProvider.notifier).setStrength(value);
+            },
+          ),
+          const Text(
+            '画面を長押ししている間は、補正前の映像を表示します',
+            style: TextStyle(color: Colors.white70, fontSize: 12),
+          ),
+          _buildFrameTab(),
+          // リセット & 決定ボタン
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () {
+                    setState(() {
+                      _red = 120;
+                      _green = 200;
+                      _blue = 70;
+                    });
+                  },
+                  child: const Text('リセット'),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: () {
+                    ScaffoldMessenger.of(
+                      context,
+                    ).showSnackBar(const SnackBar(content: Text('色調整を適用しました')));
+                  },
+                  child: const Text('決定'),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 

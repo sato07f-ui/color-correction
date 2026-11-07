@@ -57,7 +57,10 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     ];
 
     return Scaffold(
-      appBar: AppBar(title: Text(_titles[_currentIndex]), elevation: 1),
+      // カメラ画面は映像を広く見せるため、AppBar を出さない
+      appBar: _currentIndex == 0
+          ? null
+          : AppBar(title: Text(_titles[_currentIndex]), elevation: 1),
       body: AnimatedSwitcher(
         duration: const Duration(milliseconds: 300),
         switchInCurve: Curves.easeOutCubic,
