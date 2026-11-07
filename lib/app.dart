@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'features/settings/providers/font_size_provider.dart';
 import 'theme/app_theme.dart';
 import 'features/presentation/screens/camera_screen.dart';
 import 'features/presentation/screens/settings_screen.dart';
@@ -29,6 +31,22 @@ class _MyAppState extends State<MyApp> {
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
       themeMode: _themeMode,
+      // 設定画面の文字サイズを、アプリ全体の文字に反映する
+      builder: (context, child) => Consumer(
+        builder: (context, ref, _) {
+          final scale = ref.watch(fontSizeProvider).scale;
+          final mediaQuery = MediaQuery.of(context);
+          return MediaQuery(
+            data: mediaQuery.copyWith(
+              // 端末の文字サイズ設定に、アプリの倍率を掛ける
+              textScaler: TextScaler.linear(
+                mediaQuery.textScaler.scale(1) * scale,
+              ),
+            ),
+            child: child!,
+          );
+        },
+      ),
       home: MainNavigationScreen(onThemeChanged: _changeTheme),
     );
   }

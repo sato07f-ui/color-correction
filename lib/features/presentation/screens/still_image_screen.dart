@@ -125,78 +125,87 @@ class _StillImageScreenState extends ConsumerState<StillImageScreen> {
           child: Container(
             padding: const EdgeInsets.all(12),
             color: Colors.white,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const Text(
-                  '写真補正パネル',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                ),
-
-                const SizedBox(height: 8),
-
-                // 補正タイプ選択
-                const Text('補正タイプ'),
-
-                const SizedBox(height: 12),
-
-                SegmentedButton<CorrectionType>(
-                  segments: CorrectionType.values.map((type) {
-                    return ButtonSegment<CorrectionType>(
-                      value: type,
-                      label: Text(type.displayName),
-                    );
-                  }).toList(),
-                  selected: {settings.type},
-                  onSelectionChanged: (selected) {
-                    notifier.setType(selected.first);
-                  },
-                ),
-
-                const SizedBox(height: 12),
-
-                // 補正強度
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text('補正強度'),
-                    Text(
-                      '${(settings.strength * 100).round()}%',
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                  ],
-                ),
-
-                SliderTheme(
-                  data: SliderTheme.of(context).copyWith(
-                    trackHeight: 3,
-                    overlayShape: SliderComponentShape.noOverlay,
-                    thumbShape: const RoundSliderThumbShape(
-                      enabledThumbRadius: 7,
-                    ),
-                  ),
-                  child: Slider(
-                    value: settings.strength,
-                    min: 0,
-                    max: 1,
-                    divisions: 100,
-                    onChanged: (value) {
-                      notifier.setStrength(value);
-                    },
-                  ),
-                ),
-
-                const Spacer(),
-
-                // 写真選択ボタン
-                ElevatedButton.icon(
-                  onPressed: _isLoading ? null : _pickImage,
-                  icon: const Icon(Icons.photo_library),
-                  label: Text(_image == null ? 'ギャラリーから選ぶ' : '別の写真を選ぶ'),
-                ),
-              ],
+            // 文字サイズ「大」の小さい画面でもはみ出さないよう、入りきらないときはスクロールする
+            child: SingleChildScrollView(
+              child: _buildPanel(settings, notifier),
             ),
           ),
+        ),
+      ],
+    );
+  }
+
+  // 補正設定パネルの中身
+  Widget _buildPanel(
+    CorrectionSettings settings,
+    CorrectionSettingsNotifier notifier,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const Text(
+          '写真補正パネル',
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+        ),
+
+        const SizedBox(height: 8),
+
+        // 補正タイプ選択
+        const Text('補正タイプ'),
+
+        const SizedBox(height: 12),
+
+        SegmentedButton<CorrectionType>(
+          segments: CorrectionType.values.map((type) {
+            return ButtonSegment<CorrectionType>(
+              value: type,
+              label: Text(type.displayName),
+            );
+          }).toList(),
+          selected: {settings.type},
+          onSelectionChanged: (selected) {
+            notifier.setType(selected.first);
+          },
+        ),
+
+        const SizedBox(height: 12),
+
+        // 補正強度
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text('補正強度'),
+            Text(
+              '${(settings.strength * 100).round()}%',
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+
+        SliderTheme(
+          data: SliderTheme.of(context).copyWith(
+            trackHeight: 3,
+            overlayShape: SliderComponentShape.noOverlay,
+            thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 7),
+          ),
+          child: Slider(
+            value: settings.strength,
+            min: 0,
+            max: 1,
+            divisions: 100,
+            onChanged: (value) {
+              notifier.setStrength(value);
+            },
+          ),
+        ),
+
+        const SizedBox(height: 16),
+
+        // 写真選択ボタン
+        ElevatedButton.icon(
+          onPressed: _isLoading ? null : _pickImage,
+          icon: const Icon(Icons.photo_library),
+          label: Text(_image == null ? 'ギャラリーから選ぶ' : '別の写真を選ぶ'),
         ),
       ],
     );
