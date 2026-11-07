@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/constants/app_constants.dart';
@@ -40,10 +41,24 @@ class SettingsStorageService {
     await prefs.setInt(AppConstants.keyFontSize, fontSize.index);
   }
 
+  Future<ThemeMode> loadThemeMode() async {
+    final prefs = await SharedPreferences.getInstance();
+    final index = prefs.getInt(AppConstants.keyThemeMode);
+    return index != null && index >= 0 && index < ThemeMode.values.length
+        ? ThemeMode.values[index]
+        : ThemeMode.system;
+  }
+
+  Future<void> saveThemeMode(ThemeMode themeMode) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(AppConstants.keyThemeMode, themeMode.index);
+  }
+
   Future<void> clearSettings() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(AppConstants.keyCorrectionType);
     await prefs.remove(AppConstants.keyCorrectionStrength);
     await prefs.remove(AppConstants.keyFontSize);
+    await prefs.remove(AppConstants.keyThemeMode);
   }
 }

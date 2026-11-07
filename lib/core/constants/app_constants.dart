@@ -5,4 +5,5 @@ class AppConstants {
   static const String keyCorrectionType = 'correction_type_index';
   static const String keyCorrectionStrength = 'correction_strength_val';
   static const String keyFontSize = 'font_size_index';
+  static const String keyThemeMode = 'theme_mode_index';
 }

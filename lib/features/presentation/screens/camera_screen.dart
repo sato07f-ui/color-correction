@@ -287,7 +287,8 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
     final representative = _representativeColor;
 
     return Material(
-      color: Colors.white,
+      // ダークテーマでも文字が読めるよう、テーマの色を使う
+      color: Theme.of(context).colorScheme.surface,
       borderRadius: BorderRadius.circular(20),
       elevation: 12,
       child: ConstrainedBox(

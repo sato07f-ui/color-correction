@@ -114,7 +114,8 @@ class _StillImageScreenState extends ConsumerState<StillImageScreen> {
           flex: 4,
           child: Container(
             width: double.infinity,
-            color: Colors.grey.shade200,
+            // 固定の色にするとダークテーマで文字が読めなくなるので、テーマの色を使う
+            color: Theme.of(context).colorScheme.surfaceContainerHighest,
             child: _buildImageArea(settings),
           ),
         ),
@@ -124,7 +125,7 @@ class _StillImageScreenState extends ConsumerState<StillImageScreen> {
           flex: 5,
           child: Container(
             padding: const EdgeInsets.all(12),
-            color: Colors.white,
+            color: Theme.of(context).colorScheme.surface,
             // 文字サイズ「大」の小さい画面でもはみ出さないよう、入りきらないときはスクロールする
             child: SingleChildScrollView(
               child: _buildPanel(settings, notifier),
@@ -222,13 +223,14 @@ class _StillImageScreenState extends ConsumerState<StillImageScreen> {
     }
 
     if (_image == null) {
-      return const Center(
+      final hintColor = Theme.of(context).colorScheme.onSurfaceVariant;
+      return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.image_outlined, size: 80, color: Colors.grey),
-            SizedBox(height: 12),
-            Text('写真を選択してください', style: TextStyle(color: Colors.black54)),
+            Icon(Icons.image_outlined, size: 80, color: hintColor),
+            const SizedBox(height: 12),
+            Text('写真を選択してください', style: TextStyle(color: hintColor)),
           ],
         ),
       );

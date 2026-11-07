@@ -4,6 +4,8 @@ import 'package:color_correction/core/models/font_size_option.dart';
 import 'package:color_correction/core/providers/correction_settings_provider.dart';
 import 'package:color_correction/features/settings/providers/font_size_provider.dart';
 import 'package:color_correction/features/settings/providers/settings_persistence.dart';
+import 'package:color_correction/features/settings/providers/theme_mode_provider.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -96,5 +98,21 @@ void main() {
     final second = await createPersistentContainer();
     addTearDown(second.dispose);
     expect(second.read(fontSizeProvider), FontSizeOption.large);
+  });
+  test('テーマは、保存がなければ端末の設定に合わせ、変えると保存・復元される', () async {
+    SharedPreferences.setMockInitialValues({});
+
+    final first = await createPersistentContainer();
+    expect(first.read(themeModeProvider), ThemeMode.system);
+    first.read(themeModeProvider.notifier).setThemeMode(ThemeMode.dark);
+    await pumpEventQueue();
+    first.dispose();
+
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getInt(AppConstants.keyThemeMode), ThemeMode.dark.index);
+
+    final second = await createPersistentContainer();
+    addTearDown(second.dispose);
+    expect(second.read(themeModeProvider), ThemeMode.dark);
   });
 }
