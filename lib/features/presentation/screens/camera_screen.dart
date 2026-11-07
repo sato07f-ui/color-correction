@@ -39,14 +39,10 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
   Future<void>? _initialization;
   final ColorSampler _colorSampler = const ColorSampler();
 
-  // RGBスライダー値
+  // 照準の位置の色（カメラ映像から取得する）
   double _red = 120;
   double _green = 200;
   double _blue = 70;
-
-  // FRAME設定
-  String _selectedShape = '正方形';
-  String _selectedSize = '中';
 
   // 長押ししている間だけ、補正前の映像を表示する
   bool _showOriginal = false;
@@ -545,9 +541,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
   Widget _buildReticle() {
     const chipHeight = 44.0;
     const gap = 12.0;
-    final size = _selectedSize == '小'
-        ? 70.0
-        : (_selectedSize == '中' ? 110.0 : 150.0);
+    const size = 110.0;
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -558,10 +552,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
           height: size,
           decoration: BoxDecoration(
             border: Border.all(color: Colors.white, width: 2),
-            shape: _selectedShape == '円' ? BoxShape.circle : BoxShape.rectangle,
-            borderRadius: _selectedShape == '正方形'
-                ? BorderRadius.circular(8)
-                : null,
+            borderRadius: BorderRadius.circular(8),
           ),
         ),
         const SizedBox(height: gap),
@@ -632,7 +623,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
     );
   }
 
-  // 下部のカード：補正強度と、照準の設定など
+  // 下部のカード：補正強度
   Widget _buildBottomPanel(CorrectionSettings settings) {
     return _buildGlassCard(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
@@ -659,35 +650,6 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
             '画面を長押ししている間は、補正前の映像を表示します',
             style: TextStyle(color: Colors.white70, fontSize: 12),
           ),
-          _buildFrameTab(),
-          // リセット & 決定ボタン
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: () {
-                    setState(() {
-                      _red = 120;
-                      _green = 200;
-                      _blue = 70;
-                    });
-                  },
-                  child: const Text('リセット'),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: ElevatedButton(
-                  onPressed: () {
-                    ScaffoldMessenger.of(
-                      context,
-                    ).showSnackBar(const SnackBar(content: Text('色調整を適用しました')));
-                  },
-                  child: const Text('決定'),
-                ),
-              ),
-            ],
-          ),
         ],
       ),
     );
@@ -710,55 +672,6 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
           ),
         ),
       ],
-    );
-  }
-
-  // FRAME設定タブ
-  Widget _buildFrameTab() {
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text('フレームの形', style: TextStyle(fontWeight: FontWeight.bold)),
-          const SizedBox(height: 8),
-          SegmentedButton<String>(
-            segments: const [
-              ButtonSegment(
-                value: '正方形',
-                label: Text('正方形'),
-                icon: Icon(Icons.crop_square),
-              ),
-              ButtonSegment(
-                value: '円',
-                label: Text('円'),
-                icon: Icon(Icons.circle_outlined),
-              ),
-              ButtonSegment(
-                value: '長方形',
-                label: Text('長方形'),
-                icon: Icon(Icons.rectangle_outlined),
-              ),
-            ],
-            selected: {_selectedShape},
-            onSelectionChanged: (val) =>
-                setState(() => _selectedShape = val.first),
-          ),
-          const SizedBox(height: 16),
-          const Text('フレームの大きさ', style: TextStyle(fontWeight: FontWeight.bold)),
-          const SizedBox(height: 8),
-          SegmentedButton<String>(
-            segments: const [
-              ButtonSegment(value: '小', label: Text('小')),
-              ButtonSegment(value: '中', label: Text('中')),
-              ButtonSegment(value: '大', label: Text('大')),
-            ],
-            selected: {_selectedSize},
-            onSelectionChanged: (val) =>
-                setState(() => _selectedSize = val.first),
-          ),
-        ],
-      ),
     );
   }
 }
