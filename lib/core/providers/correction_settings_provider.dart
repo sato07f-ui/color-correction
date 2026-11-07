@@ -5,7 +5,8 @@ import '../models/correction_settings.dart';
 
 /// 補正設定を管理する Notifier
 class CorrectionSettingsNotifier extends StateNotifier<CorrectionSettings> {
-  CorrectionSettingsNotifier() : super(const CorrectionSettings());
+  /// [initial] は起動時に端末から読み込んだ設定（F-06）。省略すると初期値で始まる
+  CorrectionSettingsNotifier([super.initial = const CorrectionSettings()]);
 
   /// 補正タイプの変更
   void setType(CorrectionType type) {
